@@ -1,32 +1,93 @@
-# React + TypeScript + Vite
+# La Fourno ⚓
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Mi app de mar: clima, marea y sol en **mis** puntos, y la respuesta a
+"¿cuándo salgo esta semana?" para el corredor **Marina Ocean Reef
+(Punta Pacífica) → Las Perlas**, calibrada a un Sunsation CCX 40.
 
-Currently, two official plugins are available:
+Condiciones + recomendador. Nada más, a propósito.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🔗 Links
 
-## React Compiler
+- **App (instálala como PWA):** https://la-fourno.vercel.app
+- **Repo:** https://github.com/tommyhanono/la-fourno
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Qué hace
 
-## Expanding the Oxlint configuration
+- **Pantalla principal**: las 3 mejores ventanas de la semana (bloques
+  de 2 h, solo horas de luz), con score 0–100 y desglose abrible que
+  muestra los números ("viento 8 kt: +40 · despejado: +30 · …").
+- **9 puntos precargados**: Marina Ocean Reef, Contadora, Chapera,
+  Ocean Reef (islas), Pearl Island, Mogo Mogo, Caracoles + las playas
+  Santa Clara (Las Sirenas) y Coronado con su "score de día de playa".
+- **Por punto**: condiciones de ahora (viento, cielo, ola, marea con
+  tendencia, temperatura, UV), curva de marea del día con pleamares y
+  bajamares, amanecer/atardecer, timeline horaria deslizable y resumen
+  semanal.
+- Todo en hora de Panamá; unidades en nudos/pies/°C con toggle
+  (persistido en el teléfono).
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## Fuentes de datos (gratis, sin key)
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+| Dato | Fuente |
+|---|---|
+| Viento, ráfagas, nubes, lluvia, UV, CAPE, amanecer/atardecer | [Open-Meteo Forecast](https://open-meteo.com) |
+| Oleaje (altura, período, dirección) | [Open-Meteo Marine](https://open-meteo.com) |
+| **Marea** | Open-Meteo Marine `sea_level_height_msl` (modelo Copernicus/CMEMS) |
+
+**La marea es SIEMPRE un estimado** y el UI lo dice: no hay fuente
+armónica gratuita con API para Balboa (NOAA ya no la publica). El
+modelo se validó contra la tabla armónica de Balboa: rango casi
+idéntico y extremos con ~±30 min de desfase — suficiente para decidir
+el día, **no** para entrar a un bajo con la quilla justa. Detalle en
+[DECISIONES.md](DECISIONES.md).
+
+Los datos se cachean 30 min en el teléfono; si la red falla, la app
+muestra lo último que llegó y lo dice — la hora del dato siempre está
+visible.
+
+## Editar mis puntos
+
+`src/config/puntos.ts` — nombre, coordenadas, tipo (`nav` o `playa`).
+Comentado y con las fuentes de cada coordenada. "Caracoles" está
+marcado como estimado (islotes NE de Contadora, sin nombre oficial en
+cartas).
+
+## Calibrar el recomendador
+
+`src/config/calibracion.ts` — pesos (viento 45 / sol 30 / ola 15 /
+marea 10), tramos de viento y ola para el CCX 40, penalizaciones de
+seguridad (tormenta, mar corto, mar grueso). Todo comentado; edita,
+guarda y listo.
+
+## Instalar el PWA en iPhone
+
+1. Abre https://la-fourno.vercel.app en **Safari**.
+2. Botón compartir → **Añadir a pantalla de inicio**.
+3. Ábrela desde el ícono: pantalla completa, y el shell funciona hasta
+   sin señal (los datos se actualizan cuando vuelve la red).
+
+## Desarrollo
+
+```bash
+npm install
+npm run dev        # desarrollo
+npm run build      # build a dist/
+npm test           # unit (Vitest)
+npm run test:e2e   # E2E (Playwright)
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Auditoría completa y resultados: [MEGA-RONDA.md](MEGA-RONDA.md).
+Decisiones y supuestos: [DECISIONES.md](DECISIONES.md).
+
+## Seguridad
+
+La app es informativa y trabaja con pronósticos y estimados. **No
+sustituye los avisos oficiales ni el juicio del capitán.** El aviso
+está fijo en todas las pantallas y no se puede quitar, a propósito.
+
+## Ideas futuras (fuera de alcance, a propósito)
+
+- **WorldTides API** (~$5/mes): extremos de marea armónicos reales por
+  coordenada — el único upgrade pagado que vale la pena.
+- Rosa de viento por hora, radar de lluvia, alertas push, tráfico AIS.
+- Más corredores (p. ej. Ocean Reef → Taboga).

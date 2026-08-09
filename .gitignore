@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# tests y auditorías
+test-results/
+playwright-report/
+lh*.json
