@@ -105,8 +105,11 @@ export const PUNTOS: Punto[] = [
     id: 'coronado',
     nombre: 'Coronado',
     descripcion: 'Playa Coronado (Chame)',
-    lat: 8.5294, // Playa Coronado oeste (OSM)
-    lon: -79.8784,
+    // Franja de playa de Coronado; verificado por reverse geocoding
+    // ("Coronado, Chame, Panamá Oeste"). El primer intento (8.5294,
+    // -79.8784, feature de OSM) caía en Nueva Gorgona.
+    lat: 8.512,
+    lon: -79.888,
     tipo: 'playa',
   },
 ]

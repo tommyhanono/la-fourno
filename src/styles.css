@@ -8,6 +8,23 @@
    Inter por inercia, radio 12 px (aquí radio 0).
    ============================================================ */
 
+/* Fuentes autoalojadas (subset latin, OFL) — sin pedirle nada a Google
+   en runtime: carga más rápida y el PWA funciona entero sin señal. */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/archivo-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Archivo Black';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/archivo-black-latin.woff2') format('woff2');
+}
+
 :root {
   --color-bg:         oklch(0.96 0.015  85);   /* #f4f0e6  papel cálido */
   --color-surface:    oklch(0.99 0.008  85);   /* #fdfbf5 */
@@ -471,6 +488,9 @@ summary:focus-visible {
   align-items: flex-start;
   color: var(--color-text);
 }
+
+/* reserva el alto de las 3 ventanas mientras cargan (evita CLS) */
+.vacio.alto { min-height: 496px; }
 .vacio svg { flex-shrink: 0; color: var(--color-danger); }
 
 .sin-dato { color: var(--color-text-muted); }

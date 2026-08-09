@@ -112,8 +112,10 @@ function resumenVentana(
 }
 
 function CargandoOFallo({ estado }: { estado: EstadoDatos }) {
+  // .alto reserva la altura de las 3 tarjetas: sin salto de layout
+  // cuando llegan los datos.
   return (
-    <div className="tarjeta vacio" role="status">
+    <div className="tarjeta vacio alto" role="status">
       {estado.cargando ? (
         <p>Bajando el pronóstico de la semana…</p>
       ) : (

@@ -5,8 +5,17 @@
 // la hora del último dato; cachear aquí duplicaría esa lógica y
 // escondería datos viejos.
 
-const CACHE = 'lafourno-shell-v1'
-const SHELL = ['/', '/manifest.webmanifest', '/icono.svg', '/icono-192.png', '/icono-512.png', '/icono-180.png']
+const CACHE = 'lafourno-shell-v2'
+const SHELL = [
+  '/',
+  '/manifest.webmanifest',
+  '/icono.svg',
+  '/icono-192.png',
+  '/icono-512.png',
+  '/icono-180.png',
+  '/fonts/archivo-latin.woff2',
+  '/fonts/archivo-black-latin.woff2',
+]
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)))

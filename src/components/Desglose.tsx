@@ -17,9 +17,7 @@ export function BadgeScore({ score }: { score: ResultadoScore }) {
 export function Desglose({ score, id }: { score: ResultadoScore; id: string }) {
   return (
     <details className="desglose">
-      <summary aria-label={`Abrir desglose del score ${score.total}`}>
-        ¿Por qué {score.total}?
-      </summary>
+      <summary>¿Por qué {score.total}?</summary>
       <ul id={id} className="desglose-lista">
         {score.contribuciones.map((c, i) => (
           <li key={i} className={c.puntos < 0 ? 'resta' : 'suma'}>
