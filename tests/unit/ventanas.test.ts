@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { bloquesCorredor, mejoresVentanas, diasPlaya } from '../../src/lib/ventanas'
+import {
+  bloquesCorredor,
+  mejoresVentanas,
+  resumenSemanal,
+  diasPlaya,
+} from '../../src/lib/ventanas'
 import { datosSinteticos, DIA_BASE } from '../fixtures/genera'
 import { horaPanama, claveDia } from '../../src/lib/time'
 
@@ -85,6 +90,32 @@ describe('mejores ventanas', () => {
     const vs = mejoresVentanas(bloquesCorredor(datos))
     expect(vs.length).toBe(3)
     expect(vs[0].score.parcial).toBe(true)
+  })
+})
+
+describe('resumen día por día', () => {
+  it('cubre TODOS los días del pronóstico, incluso los feos', () => {
+    const dias = resumenSemanal(bloquesCorredor(datosSinteticos()))
+    // 8 días de pronóstico, todos con bloques de luz futuros a las 5 am
+    expect(dias).toHaveLength(8)
+    const claves = dias.map((d) => d.clave)
+    expect(claves).toContain('2026-08-12') // miércoles de tormenta
+    expect(claves).toContain('2026-08-14') // viernes ventoso
+    expect(claves).toContain('2026-08-16') // el domingo que viene
+    for (const d of dias) expect(d.mejorBloque).not.toBeNull()
+  })
+
+  it('viene ordenado cronológicamente y el mejor bloque manda por score', () => {
+    const bloques = bloquesCorredor(datosSinteticos())
+    const dias = resumenSemanal(bloques)
+    for (let i = 1; i < dias.length; i++) {
+      expect(dias[i].dia.getTime()).toBeGreaterThan(dias[i - 1].dia.getTime())
+    }
+    for (const d of dias) {
+      const delDia = bloques.filter((b) => claveDia(b.inicio) === d.clave)
+      const max = Math.max(...delDia.map((b) => b.score.total))
+      expect(d.mejorBloque!.score.total).toBe(max)
+    }
   })
 })
 

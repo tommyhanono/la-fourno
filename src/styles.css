@@ -285,6 +285,32 @@ summary:focus-visible {
 .ventana.mejor .desglose-lista .resta .pts { color: oklch(0.75 0.16 25); }
 .desglose-lista .nota-parcial { color: var(--color-warn); font-size: 0.85rem; }
 
+/* ---------- día por día ---------- */
+.seccion-dias { margin-top: var(--space-6); }
+
+.seccion-dias h2 {
+  font-family: var(--fuente-titulos);
+  font-size: 1.3rem;
+  margin-bottom: var(--space-1);
+}
+
+.sub-seccion {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-bottom: var(--space-3);
+}
+
+.dia-peligro {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-danger);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /* ---------- lista de puntos ---------- */
 .seccion-puntos h2 {
   font-family: var(--fuente-titulos);

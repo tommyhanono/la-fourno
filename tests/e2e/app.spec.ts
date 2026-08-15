@@ -58,6 +58,27 @@ test.describe('La Fourno', () => {
     ).toContainText(/viento \d+ kt/)
   })
 
+  test('día por día: la semana entera visible, cada día con su score y desglose', async ({
+    page,
+  }) => {
+    await mockApis(page)
+    await page.goto('/')
+    const seccion = page.locator('.seccion-dias')
+    await expect(seccion).toBeVisible({ timeout: 15_000 })
+    await expect(seccion.getByText('Día por día')).toBeVisible()
+    // semana completa: al menos 7 días listados (8 si hoy aún tiene bloques)
+    const filas = seccion.locator('.semana-fila')
+    expect(await filas.count()).toBeGreaterThanOrEqual(7)
+    // cada día trae su score…
+    for (let i = 0; i < (await filas.count()); i++) {
+      await expect(filas.nth(i).locator('.badge-score strong')).toHaveText(/^\d+$/)
+    }
+    // …y su desglose abrible con números
+    const ultima = filas.last()
+    await ultima.locator('summary').click()
+    await expect(ultima.locator('.desglose-lista .pts').first()).toHaveText(/^[+−]\d/)
+  })
+
   test('navega a cada uno de los 9 puntos', async ({ page }) => {
     await mockApis(page)
     await page.goto('/')

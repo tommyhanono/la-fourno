@@ -7,7 +7,7 @@ import { PUNTOS } from '../config/puntos'
 import type { EstadoDatos } from '../state/hooks'
 import type { Unidades } from '../lib/units'
 import { fmtViento, fmtOla } from '../lib/units'
-import { bloquesCorredor, mejoresVentanas, diasPlaya } from '../lib/ventanas'
+import { bloquesCorredor, mejoresVentanas, resumenSemanal, diasPlaya } from '../lib/ventanas'
 import { nombreDia, horaMuyCorta, parsePanama } from '../lib/time'
 import { Header, AvisoSeguridad } from '../components/Marco'
 import { BadgeScore, Desglose } from '../components/Desglose'
@@ -17,10 +17,9 @@ import { cieloDeCodigo } from '../lib/wmo'
 export function Home({ estado, unidades }: { estado: EstadoDatos; unidades: Unidades }) {
   const { datos } = estado
 
-  const ventanas = useMemo(() => {
-    if (!datos) return []
-    return mejoresVentanas(bloquesCorredor(datos))
-  }, [datos])
+  const bloques = useMemo(() => (datos ? bloquesCorredor(datos) : []), [datos])
+  const ventanas = useMemo(() => mejoresVentanas(bloques), [bloques])
+  const semana = useMemo(() => resumenSemanal(bloques), [bloques])
 
   return (
     <div className="pantalla">
@@ -71,6 +70,52 @@ export function Home({ estado, unidades }: { estado: EstadoDatos; unidades: Unid
             </ol>
           )}
         </section>
+
+        {datos && semana.length > 0 && (
+          <section aria-labelledby="titulo-dias" className="seccion-dias">
+            <h2 id="titulo-dias">Día por día</h2>
+            <p className="sub-seccion">
+              El mejor bloque de cada día del corredor, esté o no entre las 3
+              ventanas de arriba.
+            </p>
+            <div className="tarjeta">
+              <ul className="semana">
+                {semana.map((d) => (
+                  <li key={d.clave} className="semana-fila">
+                    <span className="semana-dia">{nombreDia(d.dia)}</span>
+                    {d.mejorBloque ? (
+                      <>
+                        <span className="semana-datos">
+                          {horaMuyCorta(d.mejorBloque.inicio)} –{' '}
+                          {horaMuyCorta(d.mejorBloque.fin)}
+                          {' · '}
+                          {resumenVentana(
+                            d.mejorBloque.entrada.vientoKt,
+                            d.mejorBloque.entrada.olaM,
+                            d.mejorBloque.entrada.nubosidadPct,
+                            unidades,
+                          )}
+                        </span>
+                        {d.mejorBloque.score.peligro && (
+                          <span className="dia-peligro">
+                            <Icono nombre="alerta" size={16} /> no recomendado
+                          </span>
+                        )}
+                        <BadgeScore score={d.mejorBloque.score} />
+                        <Desglose
+                          score={d.mejorBloque.score}
+                          id={`dia-${d.clave}`}
+                        />
+                      </>
+                    ) : (
+                      <span className="semana-datos">sin bloque de luz</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+        )}
 
         <section aria-labelledby="titulo-puntos" className="seccion-puntos">
           <h2 id="titulo-puntos">Mis puntos</h2>
