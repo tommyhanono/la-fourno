@@ -167,13 +167,20 @@ export function mejoresVentanas(bloques: Bloque[], n = 3): Bloque[] {
   return elegidos.sort((a, b) => a.inicio.getTime() - b.inicio.getTime())
 }
 
+export interface RangoDia {
+  vientoMin: number | null
+  vientoMax: number | null
+  olaMin: number | null
+  olaMax: number | null
+}
+
 export interface DiaJornada {
   dia: Date
   clave: string
   /** Condiciones de toda la jornada (salida → mejor destino). */
   entrada: EntradaBloque
-  /** Picos del día, para el "hasta X" del resumen. */
-  picos: { vientoKt: number | null; olaM: number | null }
+  /** Rango medido del día (mín → máx), que es lo que se muestra. */
+  rango: RangoDia
   /** Hora a la que empieza la tormenta dentro de la jornada, si la hay. */
   tormentaDesde: Date | null
   /** Score del día yendo al mejor destino. */
@@ -226,7 +233,7 @@ function entradaJornada(
   destino: Punto,
   mareaDestino: SerieMarea | null,
   llegada: Date,
-): { entrada: EntradaBloque; picos: { vientoKt: number | null; olaM: number | null } } {
+): { entrada: EntradaBloque; rango: RangoDia } {
   const pares: { f: PuntoForecast; m: PuntoMarine | null }[] = [
     { f: fs[idx(PUNTO_SALIDA.id)], m: ms[idx(PUNTO_SALIDA.id)] },
     { f: fs[idx(destino.id)], m: ms[idx(destino.id)] },
@@ -234,6 +241,8 @@ function entradaJornada(
 
   const vProm: (number | null)[] = []
   const vPico: (number | null)[] = []
+  const vPiso: (number | null)[] = []
+  const oPiso: (number | null)[] = []
   const rachas: (number | null)[] = []
   const nubes: (number | null)[] = []
   const probs: (number | null)[] = []
@@ -253,6 +262,7 @@ function entradaJornada(
     const ii = indicesBloque(f.hourly.time, inicio, horas)
     vProm.push(meanNum(ii.map((i) => f.hourly.wind_speed_10m[i])))
     vPico.push(maxNum(ii.map((i) => f.hourly.wind_speed_10m[i])))
+    vPiso.push(minNum(ii.map((i) => f.hourly.wind_speed_10m[i])))
     rachas.push(maxNum(ii.map((i) => f.hourly.wind_gusts_10m[i])))
     nubes.push(meanNum(ii.map((i) => f.hourly.cloud_cover[i])))
     probs.push(meanNum(ii.map((i) => f.hourly.precipitation_probability[i])))
@@ -282,6 +292,7 @@ function entradaJornada(
       const im = indicesBloque(m.hourly.time, inicio, horas)
       oProm.push(meanNum(im.map((i) => m.hourly.wave_height[i])))
       oPico.push(maxNum(im.map((i) => m.hourly.wave_height[i])))
+      oPiso.push(minNum(im.map((i) => m.hourly.wave_height[i])))
       periodos.push(minNum(im.map((i) => m.hourly.wave_period[i])))
     }
   }
@@ -289,7 +300,15 @@ function entradaJornada(
   const vientoPico = maxNum(vPico)
   const olaPico = maxNum(oPico)
   return {
-    picos: { vientoKt: vientoPico, olaM: olaPico },
+    // Rango REAL del día (mínimo → máximo). El score usa su propio
+    // número ponderado, pero al capitán se le muestra el rango medido:
+    // un promedio ponderado no es un dato que exista en el pronóstico.
+    rango: {
+      vientoMin: minNum(vPiso),
+      vientoMax: vientoPico,
+      olaMin: minNum(oPiso),
+      olaMax: olaPico,
+    },
     entrada: {
       vientoKt: tipico(maxNum(vProm), vientoPico),
       rachaKt: maxNum(rachas),
@@ -344,7 +363,7 @@ export function jornadasSemana(datos: DatosApp): DiaJornada[] {
 
     const scored = destinos
       .map((p) => {
-        const { entrada, picos } = entradaJornada(
+        const { entrada, rango } = entradaJornada(
           inicio,
           hastaHora - desdeHora,
           datos.forecast,
@@ -353,21 +372,21 @@ export function jornadasSemana(datos: DatosApp): DiaJornada[] {
           mareas.get(p.id) ?? null,
           llegada,
         )
-        return { punto: p, entrada, picos, score: scoreBloque(entrada) }
+        return { punto: p, entrada, rango, score: scoreBloque(entrada) }
       })
       .sort((a, b) => b.score.total - a.score.total)
     const mejor = scored[0]
-    const rango = mejor.score.total - scored[scored.length - 1].score.total
+    const dispersion = mejor.score.total - scored[scored.length - 1].score.total
     out.push({
       dia: base,
       clave: f0.daily.time[d],
       entrada: mejor.entrada,
-      picos: mejor.picos,
+      rango: mejor.rango,
       tormentaDesde: primeraTormenta(f0, inicio, hastaHora - desdeHora),
       score: mejor.score,
       mejorDestino: mejor.punto,
       destinos: scored.map(({ punto, score }) => ({ punto, score })),
-      parejo: rango <= UMBRAL_PAREJO,
+      parejo: dispersion <= UMBRAL_PAREJO,
       sol: {
         sale: parsePanama(f0.daily.sunrise[d]),
         sePone: parsePanama(f0.daily.sunset[d]),

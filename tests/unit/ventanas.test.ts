@@ -158,11 +158,18 @@ describe('jornadas día por día', () => {
     )
   })
 
-  it('el resumen del día trae picos, sol y comparación de destinos', () => {
+  it('el rango del día es el medido, y encierra al número del score', () => {
     const dias = jornadasSemana(datosSinteticos())
     const lunes = dias[0]
-    // viento típico ≤ pico del día
-    expect(lunes.picos.vientoKt!).toBeGreaterThanOrEqual(lunes.entrada.vientoKt!)
+    const { vientoMin, vientoMax, olaMin, olaMax } = lunes.rango
+    // el rango es real: mín ≤ máx, y el valor ponderado del score cae dentro
+    expect(vientoMin!).toBeLessThanOrEqual(vientoMax!)
+    expect(lunes.entrada.vientoKt!).toBeGreaterThanOrEqual(vientoMin!)
+    expect(lunes.entrada.vientoKt!).toBeLessThanOrEqual(vientoMax!)
+    expect(olaMin!).toBeLessThanOrEqual(olaMax!)
+    // el fixture sube el viento 1.1 kt/h desde las 7 am: la jornada
+    // 9 am – 4 pm tiene que verse como un rango, no como un número
+    expect(vientoMax! - vientoMin!).toBeGreaterThan(2)
     expect(lunes.sol).not.toBeNull()
     expect(horaPanama(lunes.sol!.sale)).toBe(6)
     // el fixture da el mismo clima a todos los puntos → empate declarado

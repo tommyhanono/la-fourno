@@ -62,7 +62,8 @@ export const PUNTOS: Punto[] = [
   },
   {
     id: 'ocean-reef-islas',
-    nombre: 'Ocean Reef',
+    // "Ocean Reef" a secas se confundía con la marina de salida.
+    nombre: 'Islas Ocean Reef',
     descripcion: 'Zona de las islas Ocean Reef, Punta Pacífica',
     lat: 8.9688, // Islas Ocean Reef (OSM)
     lon: -79.5022,

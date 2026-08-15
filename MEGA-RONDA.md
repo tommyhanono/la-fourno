@@ -122,3 +122,40 @@ Tommy. Ver DECISIONES.md §10.
 4. **CLS subió a 0.117 y performance bajó a 90** porque la sección aparecía
    al llegar los datos y empujaba el layout. → esqueleto de 7 filas que
    reserva la altura; CLS 0.002 y performance 100.
+
+---
+
+## Ronda de exactitud y estilo (2026-08-15)
+
+Revisión pedida por Tommy: "que la información esté exacta y el estilo
+como debe ser; hay overlapping incorrectos y cosas por mejorar".
+Detalle de los 13 hallazgos en DECISIONES.md §11.
+
+**Dos corridas limpias seguidas** (15:52 y 15:53):
+- 50/50 unit (+3: interpolación del score, procedencia, referencia de marea)
+- 13/13 E2E (+2 nuevas: el aviso fijo no tapa nada ni al 200 % de texto;
+  la curva de marea no encima etiquetas)
+- `scripts/audita-layout.mjs`: **sin problemas** en 6 escenarios
+  (320 px, 375 px, desgloses abiertos, texto 130 %, texto 200 %, landscape)
+- Lighthouse desktop: **performance 100 · a11y 100 · best-practices 100**
+  (SEO 91, sin cambios) · CLS 0.001 · LCP 0.4 s
+- `scripts/audita-contraste.mjs`: **AA en las 4 vistas**, desgloses abiertos
+- oxlint limpio
+
+### Herramientas nuevas
+`scripts/audita-layout.mjs` mide solapamientos contra el aviso fijo,
+desbordes de texto y scroll horizontal en los 6 escenarios. Se corre
+con el preview levantado: `BASE=http://localhost:PUERTO node
+scripts/audita-layout.mjs`. Fue lo que cazó que el aviso tapaba hasta
+200 px de contenido con el texto agrandado del iPhone — a tamaño normal
+no se veía.
+
+`scripts/audita-contraste.mjs` mide el contraste WCAG AA de **cada
+texto** contra el fondo que de verdad tiene detrás, en las 4 vistas y
+con los desgloses abiertos. Lighthouse solo audita una URL y lo visible;
+esto cubre el resto. Resuelve los colores con canvas porque los tokens
+están en `oklch()` y un regex los leería mal. Verificado inyectándole un
+color malo a propósito: lo caza (1.49:1). Encontró que el botón activo
+de Ajustes daba 4.2:1 con texto sobre el acento — que además viola la
+regla de TOMMY-DESIGN de no poner texto sobre el acento en
+`tokens-brutal`. Ahora es bloque sólido invertido: 15:1.

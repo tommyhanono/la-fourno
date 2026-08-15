@@ -56,13 +56,30 @@ export interface ResultadoScore {
   peligro: boolean
 }
 
+/**
+ * Fracción del peso según los tramos de la calibración, INTERPOLANDO
+ * entre ellos. Con escalones puros, media semana caía en el mismo
+ * cajón y daba scores idénticos (seis días seguidos "40") — el número
+ * dejaba de distinguir un día de otro. Los tramos siguen siendo la
+ * calibración de Tommy: son los puntos de anclaje de la curva.
+ */
 function trFrac<K extends string>(
   tramos: readonly ({ frac: number } & { [P in K]: number })[],
   campo: K,
   valor: number,
 ): number {
+  let desde = 0
+  let fracAnterior = tramos.length ? tramos[0].frac : 0
   for (const t of tramos) {
-    if (valor <= t[campo]) return t.frac
+    const hasta = t[campo]
+    if (valor <= hasta) {
+      // primer tramo o tramo abierto (Infinity): sin interpolar
+      if (!Number.isFinite(hasta) || hasta <= desde) return t.frac
+      const p = (valor - desde) / (hasta - desde)
+      return fracAnterior + (t.frac - fracAnterior) * Math.min(1, Math.max(0, p))
+    }
+    desde = hasta
+    fracAnterior = t.frac
   }
   return 0
 }

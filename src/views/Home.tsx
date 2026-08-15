@@ -7,8 +7,14 @@ import { PUNTOS } from '../config/puntos'
 import type { EstadoDatos } from '../state/hooks'
 import type { Unidades } from '../lib/units'
 import { fmtViento, fmtOla } from '../lib/units'
-import { bloquesCorredor, mejoresVentanas, jornadasSemana, diasPlaya } from '../lib/ventanas'
-import { nombreDia, horaMuyCorta, parsePanama } from '../lib/time'
+import {
+  bloquesCorredor,
+  mejoresVentanas,
+  jornadasSemana,
+  diasPlaya,
+  type RangoDia,
+} from '../lib/ventanas'
+import { nombreDia, horaCorta, horaMuyCorta, claveDia, parsePanama } from '../lib/time'
 import { Header, AvisoSeguridad } from '../components/Marco'
 import { BadgeScore, Desglose } from '../components/Desglose'
 import { Icono } from '../components/Icono'
@@ -20,6 +26,29 @@ export function Home({ estado, unidades }: { estado: EstadoDatos; unidades: Unid
   const bloques = useMemo(() => (datos ? bloquesCorredor(datos) : []), [datos])
   const ventanas = useMemo(() => mejoresVentanas(bloques), [bloques])
   const semana = useMemo(() => (datos ? jornadasSemana(datos) : []), [datos])
+
+  // El mejor día de la semana se marca: si no, ocho tarjetas iguales
+  // obligan a comparar ocho números a mano. Solo si es salible.
+  const mejorDiaClave = useMemo(() => {
+    const salibles = semana.filter((d) => !d.score.peligro)
+    if (salibles.length === 0) return null
+    return salibles.reduce((a, b) => (b.score.total > a.score.total ? b : a)).clave
+  }, [semana])
+
+  // El mejor bloque de 2 h de cada día. Sin esto, la pantalla parece
+  // contradecirse: arriba "mañana 8–10 am, 65" y abajo "mañana, 11".
+  // Son dos preguntas distintas (el mejor MOMENTO vs. el día entero) y
+  // mostrarlas juntas es lo que las vuelve legibles.
+  const mejorMomento = useMemo(() => {
+    const m = new Map<string, (typeof bloques)[number]>()
+    for (const b of bloques) {
+      if (b.score.peligro) continue
+      const k = claveDia(b.inicio)
+      const previo = m.get(k)
+      if (!previo || b.score.total > previo.score.total) m.set(k, b)
+    }
+    return m
+  }, [bloques])
 
   return (
     <div className="pantalla">
@@ -79,64 +108,106 @@ export function Home({ estado, unidades }: { estado: EstadoDatos; unidades: Unid
               Cada día completo en tu jornada de siempre (sales 9–10 am,
               vuelves 3–4 pm), con el mejor destino según el clima de ese día.
             </p>
-            <div className="tarjeta">
-              <ul className="semana">
-                {semana.map((d) => (
-                  <li key={d.clave} className="semana-fila">
-                    <span className="semana-dia">{nombreDia(d.dia)}</span>
-                    <span className="semana-datos">
-                      {resumenDia(d.entrada, d.picos, unidades)}
-                    </span>
-                    {d.score.peligro && (
-                      <span className="dia-peligro">
-                        <Icono nombre="alerta" size={16} /> no recomendado
-                      </span>
+            <ul className="dias">
+              {semana.map((d) => (
+                <li
+                  key={d.clave}
+                  className={`tarjeta dia ${d.clave === mejorDiaClave ? 'mejor-dia' : ''}`}
+                >
+                  <div className="dia-cabeza">
+                    <span className="dia-nombre">{nombreDia(d.dia)}</span>
+                    {d.clave === mejorDiaClave && (
+                      <span className="dia-sello">El mejor de la semana</span>
                     )}
                     <BadgeScore score={d.score} />
-                    <span className="dia-destino">
-                      {d.parejo ? (
-                        <>
-                          Parejo en todos los puntos · sugerido:{' '}
-                          <a href={`#/punto/${d.mejorDestino.id}`}>
-                            {d.mejorDestino.nombre}
-                          </a>
-                        </>
-                      ) : (
-                        <>
-                          Mejor destino:{' '}
-                          <a href={`#/punto/${d.mejorDestino.id}`}>
-                            {d.mejorDestino.nombre}
-                          </a>
-                        </>
-                      )}
-                    </span>
-                    <span className="dia-extra">
-                      {d.tormentaDesde && (
-                        <span className="dia-tormenta">
-                          tormenta prevista desde {horaMuyCorta(d.tormentaDesde)} ·{' '}
-                        </span>
-                      )}
-                      {d.sol && (
-                        <>
-                          sol {horaMuyCorta(d.sol.sale)} – {horaMuyCorta(d.sol.sePone)}
-                        </>
-                      )}
-                    </span>
-                    <Desglose score={d.score} id={`dia-${d.clave}`} />
+                  </div>
+
+                  {d.score.peligro && (
+                    <p className="dia-peligro">
+                      <Icono nombre="alerta" size={18} />
+                      <span>No recomendado para salir</span>
+                    </p>
+                  )}
+
+                  <dl className="dia-datos">
+                    <div>
+                      <dt>Viento</dt>
+                      <dd>{rangoViento(d.rango, unidades)}</dd>
+                    </div>
+                    <div>
+                      <dt>Ola</dt>
+                      <dd>{rangoOla(d.rango, unidades)}</dd>
+                    </div>
+                    <div>
+                      <dt>Cielo</dt>
+                      <dd>{textoCielo(d.entrada.nubosidadPct)}</dd>
+                    </div>
+                    <div>
+                      <dt>Lluvia</dt>
+                      <dd>
+                        {d.entrada.probLluviaPct != null
+                          ? `${Math.round(d.entrada.probLluviaPct)} %`
+                          : '—'}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <p className="dia-destino">
+                    {d.parejo ? 'Parejo en todos los puntos · sugerido' : 'Mejor destino'}{' '}
+                    <a href={`#/punto/${d.mejorDestino.id}`}>{d.mejorDestino.nombre}</a>
+                  </p>
+
+                  {mejorMomento.get(d.clave) && (
+                    <p className="dia-momento">
+                      Mejor momento del día:{' '}
+                      <strong>
+                        {horaMuyCorta(mejorMomento.get(d.clave)!.inicio)} –{' '}
+                        {horaMuyCorta(mejorMomento.get(d.clave)!.fin)}
+                      </strong>{' '}
+                      ({mejorMomento.get(d.clave)!.score.total}/100 en ese rato)
+                    </p>
+                  )}
+
+                  <p className="dia-extra">
+                    {d.tormentaDesde && (
+                      <span className="dia-tormenta">
+                        Tormenta desde {horaMuyCorta(d.tormentaDesde)}
+                        {' · '}
+                      </span>
+                    )}
+                    {/* Con minutos: a qué hora exacta se hace de noche
+                        decide si vuelves con luz. */}
+                    {d.sol && (
+                      <>
+                        sol {horaCorta(d.sol.sale)} – {horaCorta(d.sol.sePone)}
+                      </>
+                    )}
+                  </p>
+
+                  <Desglose score={d.score} id={`dia-${d.clave}`} />
+                </li>
+              ))}
+              {semana.length === 0 &&
+                Array.from({ length: 7 }, (_, i) => (
+                  <li key={`hueco-${i}`} className="tarjeta dia hueco" aria-hidden>
+                    <div className="dia-cabeza">
+                      <span className="dia-nombre">—</span>
+                    </div>
+                    <dl className="dia-datos">
+                      {['Viento', 'Ola', 'Cielo', 'Lluvia'].map((t) => (
+                        <div key={t}>
+                          <dt>{t}</dt>
+                          <dd>—</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <p className="dia-destino">—</p>
+                    <p className="dia-momento">—</p>
+                    <p className="dia-extra">—</p>
+                    <span className="hueco-desglose">—</span>
                   </li>
                 ))}
-                {semana.length === 0 &&
-                  Array.from({ length: 7 }, (_, i) => (
-                    <li key={`hueco-${i}`} className="semana-fila hueco" aria-hidden>
-                      <span className="semana-dia">—</span>
-                      <span className="semana-datos">—</span>
-                      <span className="dia-destino">—</span>
-                      <span className="dia-extra">—</span>
-                      <span className="hueco-desglose">—</span>
-                    </li>
-                  ))}
-              </ul>
-            </div>
+            </ul>
           </section>
 
         <section aria-labelledby="titulo-puntos" className="seccion-puntos">
@@ -178,38 +249,31 @@ function resumenVentana(
   return partes.join(' · ') || 'sin resumen'
 }
 
-function resumenDia(
-  e: {
-    vientoKt: number | null
-    olaM: number | null
-    nubosidadPct: number | null
-    probLluviaPct: number | null
-  },
-  picos: { vientoKt: number | null; olaM: number | null },
-  u: Unidades,
-): string {
-  const partes: string[] = []
-  if (e.vientoKt != null) {
-    const pico =
-      picos.vientoKt != null && picos.vientoKt - e.vientoKt >= 2
-        ? ` (hasta ${fmtViento(picos.vientoKt, u)})`
-        : ''
-    partes.push(`viento ${fmtViento(e.vientoKt, u)}${pico}`)
+/**
+ * Rango medido del día, no un promedio inventado: "5–14 kt" es un dato
+ * que existe en el pronóstico y le dice al capitán cuánto puede picar.
+ * Si el día es parejo, un solo número.
+ */
+function rangoViento(r: RangoDia, u: Unidades): string {
+  if (r.vientoMax == null) return '—'
+  if (r.vientoMin == null || Math.round(r.vientoMax) - Math.round(r.vientoMin) < 2) {
+    return fmtViento(r.vientoMax, u)
   }
-  if (e.olaM != null) {
-    const pico =
-      picos.olaM != null && picos.olaM - e.olaM >= 0.2
-        ? ` (hasta ${fmtOla(picos.olaM, u)})`
-        : ''
-    partes.push(`ola ${fmtOla(e.olaM, u)}${pico}`)
+  return `${Math.round(u.viento === 'kt' ? r.vientoMin : r.vientoMin * 1.852)}–${fmtViento(r.vientoMax, u)}`
+}
+
+function rangoOla(r: RangoDia, u: Unidades): string {
+  if (r.olaMax == null) return '—'
+  const conv = (m: number) => (u.ola === 'ft' ? m * 3.28084 : m)
+  if (r.olaMin == null || conv(r.olaMax) - conv(r.olaMin) < 0.4) {
+    return fmtOla(r.olaMax, u)
   }
-  if (e.nubosidadPct != null)
-    partes.push(
-      e.nubosidadPct <= 25 ? 'despejado' : e.nubosidadPct <= 50 ? 'sol parcial' : 'nublado',
-    )
-  if (e.probLluviaPct != null && e.probLluviaPct > 30)
-    partes.push(`lluvia ${Math.round(e.probLluviaPct)} %`)
-  return partes.join(' · ') || 'sin resumen'
+  return `${conv(r.olaMin).toFixed(1)}–${fmtOla(r.olaMax, u)}`
+}
+
+function textoCielo(nubes: number | null): string {
+  if (nubes == null) return '—'
+  return nubes <= 25 ? 'Despejado' : nubes <= 50 ? 'Sol parcial' : 'Nublado'
 }
 
 function CargandoOFallo({ estado }: { estado: EstadoDatos }) {
@@ -278,9 +342,16 @@ function FilaPunto({
           <span className="fila-nombre">{p.nombre}</span>
           <span className="fila-ahora">{ahoraTxt}</span>
         </span>
+        {/* Un número pelado ("0") se lee como error. Va con su etiqueta:
+            qué mide y de cuándo. */}
         {playaScore != null && (
-          <span className="fila-score" aria-label={`Score de playa hoy: ${playaScore}`}>
-            {playaScore}
+          <span className="fila-score" aria-label={`Día de playa hoy: ${playaScore} de 100`}>
+            <span className="fila-score-num" aria-hidden>
+              {playaScore}
+            </span>
+            <span className="fila-score-tag" aria-hidden>
+              playa hoy
+            </span>
           </span>
         )}
       </a>

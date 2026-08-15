@@ -16,14 +16,15 @@ Condiciones + recomendador. Nada más, a propósito.
 - **Pantalla principal**: las 3 mejores ventanas de la semana (bloques
   de 2 h, solo horas de luz), con score 0–100 y desglose abrible que
   muestra los números ("viento 8 kt: +40 · despejado: +30 · …").
-- **Día por día**: la semana completa, un día por fila, evaluada sobre
-  tu jornada de siempre (9 am – 4 pm) — sin bloques de horas. Cada día
-  trae viento y ola típicos (con su pico), cielo, lluvia, horas de sol,
-  a qué hora entra la tormenta si la hay, y **el mejor destino según el
-  clima de ese día**. Si todos los puntos quedan iguales, lo dice en vez
-  de inventar un ganador.
+- **Día por día**: la semana completa, una tarjeta por día, evaluada
+  sobre tu jornada de siempre (9 am – 4 pm) — sin bloques de horas.
+  Cada día trae el **rango medido** de viento y ola ("2–9 kt"), cielo,
+  lluvia, horas de sol con minutos, a qué hora entra la tormenta si la
+  hay, su **mejor momento** de 2 h, y **el mejor destino según el clima
+  de ese día**. Si todos los puntos quedan iguales, lo dice en vez de
+  inventar un ganador; y el mejor día de la semana va sellado.
 - **9 puntos precargados**: Marina Ocean Reef, Contadora, Chapera,
-  Ocean Reef (islas), Pearl Island, Mogo Mogo, Caracoles + las playas
+  Islas Ocean Reef, Pearl Island, Mogo Mogo, Caracoles + las playas
   Santa Clara (Las Sirenas) y Coronado con su "score de día de playa".
 - **Por punto**: condiciones de ahora (viento, cielo, ola, marea con
   tendencia, temperatura, UV), curva de marea del día con pleamares y
@@ -87,6 +88,16 @@ npm run dev        # desarrollo
 npm run build      # build a dist/
 npm test           # unit (Vitest)
 npm run test:e2e   # E2E (Playwright)
+npm run lint       # oxlint
+
+# Auditoría de layout: solapamientos, desbordes y scroll horizontal en
+# 6 escenarios (320 px, 375 px, desgloses abiertos, texto 130 % y 200 %,
+# landscape). Necesita el preview levantado en ese puerto.
+BASE=http://localhost:4173 node scripts/audita-layout.mjs
+
+# Contraste WCAG AA de cada texto en las 4 vistas (lo que Lighthouse
+# no ve, porque solo audita una URL y lo visible).
+BASE=http://localhost:4173 node scripts/audita-contraste.mjs
 ```
 
 Auditoría completa y resultados: [MEGA-RONDA.md](MEGA-RONDA.md).

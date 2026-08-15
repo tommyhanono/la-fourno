@@ -87,8 +87,13 @@ main {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
-  /* deja aire para el aviso fijo de abajo */
-  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  /* Deja aire para el aviso fijo. --aviso-alto lo mide el propio aviso
+     (ver Marco.tsx): con el texto agrandado del teléfono crece mucho y
+     un valor fijo tapaba el final del contenido. El 96px es solo el
+     respaldo para el primer pintado. */
+  padding-bottom: calc(
+    var(--aviso-alto, 96px) + var(--space-6) + env(safe-area-inset-bottom)
+  );
 }
 
 /* ---------- foco visible (piso de calidad) ---------- */
@@ -127,12 +132,13 @@ summary:focus-visible {
 
 .cabecera-titulo {
   font-family: var(--fuente-titulos);
-  font-size: 1.25rem;
+  /* Se achica lo necesario para que el nombre del punto quepa entero:
+     "Santa Clara — Las Sirenas" salía como "Santa Clara — …". */
+  font-size: clamp(0.95rem, 4.2vw, 1.25rem);
+  line-height: 1.15;
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .cabecera-acciones { display: flex; gap: var(--space-2); margin-left: auto; }
@@ -236,13 +242,29 @@ summary:focus-visible {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  /* Con el texto agrandado el badge ya no cabe en línea: envuelve en
+     vez de empujar la página a lo ancho. */
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 var(--space-2);
+  min-width: 0;
+  max-width: 100%;
   border: 3px solid currentColor;
   padding: 2px 10px;
   font-variant-numeric: tabular-nums;
 }
-.badge-score strong { font-family: var(--fuente-titulos); font-size: 1.3rem; }
-.badge-etiqueta { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.badge-score strong {
+  font-family: var(--fuente-titulos);
+  font-size: 1.3rem;
+  line-height: 1.15;
+}
+.badge-etiqueta {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.15;
+}
 .nivel-ok { color: var(--color-ok); }
 .nivel-warn { color: var(--color-warn); }
 .nivel-danger { color: var(--color-danger); }
@@ -263,6 +285,11 @@ summary:focus-visible {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* WebKit le daba caja a los items del desglose cerrado (por el display
+   explícito de abajo), y terminaban tapados por el aviso fijo. Se
+   oculta a mano: así el rect es cero en cualquier motor. */
+.desglose:not([open]) .desglose-lista { display: none; }
 
 .desglose-lista {
   list-style: none;
@@ -300,8 +327,77 @@ summary:focus-visible {
   margin-bottom: var(--space-3);
 }
 
+.dias {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dia {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dia-cabeza {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 34px;
+}
+.dia-nombre {
+  font-family: var(--fuente-titulos);
+  font-size: 1.15rem;
+  text-transform: capitalize;
+  line-height: 1.1;
+}
+.dia-cabeza .badge-score { margin-left: auto; }
+
+/* El mejor día de la semana: borde de acento y sello. El color no va
+   solo — lleva la palabra, como manda el piso de calidad. */
+.mejor-dia { border-color: var(--color-action); box-shadow: 5px 5px 0 0 var(--color-action); }
+/* Bloque sólido, no texto de color: el acento sobre papel no llega a
+   AA en tamaño chico (lo cazó Lighthouse). Así da 15:1. */
+.dia-sello {
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 7px;
+  line-height: 1.2;
+}
+
+/* Los datos del día: etiqueta arriba, número abajo. Cifras tabulares
+   para que las columnas no bailen entre días. */
+.dia-datos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-3);
+  border-top: 2px dashed var(--color-surface-2);
+  border-bottom: 2px dashed var(--color-surface-2);
+  padding: var(--space-2) 0;
+}
+@media (min-width: 480px) {
+  .dia-datos { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.dia-datos dt {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-text-muted);
+  margin-bottom: 1px;
+}
+.dia-datos dd {
+  font-weight: 700;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
 .dia-destino {
-  flex-basis: 100%;
   font-size: 0.9rem;
   color: var(--color-text-muted);
 }
@@ -312,32 +408,35 @@ summary:focus-visible {
   text-underline-offset: 3px;
 }
 
-/* Esqueleto: ocupa el mismo alto que una fila con datos. */
-.semana-fila.hueco { color: var(--color-surface-2); }
-.semana-fila.hueco .badge-score { visibility: hidden; }
-.hueco-desglose {
-  flex-basis: 100%;
-  font-size: 0.95rem;
-  line-height: 1.5;
+.dia-momento {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
 }
+.dia-momento strong { color: var(--color-text); font-variant-numeric: tabular-nums; }
 
 .dia-extra {
-  flex-basis: 100%;
   font-size: 0.85rem;
   color: var(--color-text-muted);
 }
 .dia-tormenta { color: var(--color-danger); font-weight: 700; }
 
 .dia-peligro {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-2);
   color: var(--color-danger);
   font-weight: 700;
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  line-height: 1.25;
 }
+.dia-peligro svg { flex-shrink: 0; }
+
+/* Esqueleto: ocupa el alto de una tarjeta con datos, sin salto. */
+.dia.hueco { color: var(--color-surface-2); }
+.dia.hueco .dia-nombre { color: var(--color-surface-2); }
+.hueco-desglose { font-size: 0.95rem; line-height: 1.5; }
 
 /* ---------- lista de puntos ---------- */
 .seccion-puntos h2 {
@@ -377,16 +476,37 @@ summary:focus-visible {
 
 .fila-icono { flex-shrink: 0; display: inline-flex; }
 .fila-textos { display: flex; flex-direction: column; min-width: 0; }
-.fila-nombre { font-weight: 700; font-size: 1.05rem; }
-.fila-ahora { color: var(--color-text-muted); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.fila-nombre { font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
+.fila-ahora {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
 
 .fila-score {
   margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  border: 3px solid var(--color-text);
+  padding: 2px 8px 3px;
+  text-align: center;
+}
+.fila-score-num {
   font-family: var(--fuente-titulos);
   font-size: 1.2rem;
-  border: 3px solid var(--color-text);
-  padding: 2px 10px;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
+}
+.fila-score-tag {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 /* colores de icono de cielo — con el texto al lado, nunca solos */
@@ -422,6 +542,9 @@ summary:focus-visible {
   letter-spacing: 0.07em;
   color: var(--color-text-muted);
   font-weight: 700;
+  /* "Temperatura" no cabe en una columna de 320 px ni con el texto
+     agrandado del teléfono: parte la palabra antes que desbordar. */
+  overflow-wrap: anywhere;
 }
 .dato-valor {
   font-family: var(--fuente-titulos);
@@ -510,10 +633,13 @@ summary:focus-visible {
 .selector { border: none; margin-bottom: var(--space-4); }
 .selector legend { font-weight: 700; margin-bottom: var(--space-2); }
 
-.selector-opciones { display: flex; gap: var(--space-2); }
+/* Con el texto muy agrandado los botones ya no caben en una fila:
+   envuelven en vez de empujar la página a lo ancho. */
+.selector-opciones { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
 .selector-btn {
-  flex: 1;
+  flex: 1 1 120px;
+  min-width: 0;
   min-height: 52px;
   border: var(--border-brutal);
   background: var(--color-surface);
@@ -525,15 +651,27 @@ summary:focus-visible {
   box-shadow: var(--shadow-card-active);
   transition: transform var(--motion-fast) var(--motion-ease);
 }
+/* Bloque sólido invertido, no texto sobre el acento: el papel sobre el
+   naranja da 4.2:1 y reprueba AA a 16 px. Es además lo que manda
+   TOMMY-DESIGN para tokens-brutal ("el texto nunca va sobre el
+   acento"). Así son 15:1 y se sigue leyendo como "presionado". */
 .selector-btn.activo {
-  background: var(--color-action);
-  color: var(--color-action-ink);
+  background: var(--color-text);
+  color: var(--color-bg);
   box-shadow: none;
   transform: translate(2px, 2px);
 }
 
 .nota-ajustes { color: var(--color-text-muted); font-size: 0.92rem; margin-top: var(--space-2); }
-.nota-ajustes code { font-family: ui-monospace, monospace; font-size: 0.85em; background: var(--color-surface-2); padding: 1px 5px; }
+.nota-ajustes code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+  background: var(--color-surface-2);
+  padding: 1px 5px;
+  /* Las rutas de archivo son una sola "palabra" larguísima: parten
+     antes que sacar la página de cuadro. */
+  overflow-wrap: anywhere;
+}
 
 /* ---------- vacíos y errores ---------- */
 .vacio {

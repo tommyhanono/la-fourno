@@ -14,10 +14,15 @@ interface Props {
 }
 
 const W = 640
-const H = 210
+const H = 236
 const PAD_X = 34
-const PAD_TOP = 40
-const PAD_BOT = 30
+const PAD_TOP = 42
+/** Banda inferior reservada: caben las etiquetas de bajamar Y el eje,
+    que antes se pisaban entre sí. */
+const PAD_BOT = 54
+/** Alto de las dos líneas de etiqueta (hora + nivel) desde el punto. */
+const ETIQ_ALTO = 34
+const EJE_Y = H - 10
 
 export function CurvaMarea({ serie, dia }: Props) {
   const t0 = dia.getTime()
@@ -76,22 +81,29 @@ export function CurvaMarea({ serie, dia }: Props) {
         {modelo.ext.map((e, i) => {
           const ex = x(e.time.getTime())
           const ey = y(e.nivel)
-          const arriba = e.tipo === 'pleamar'
+          // Las etiquetas van del lado que corresponde, salvo que ahí no
+          // quepan: entonces se voltean, en vez de salirse del gráfico.
+          let debajo = e.tipo === 'bajamar'
+          if (debajo && ey + ETIQ_ALTO > H - PAD_BOT + 20) debajo = false
+          if (!debajo && ey - ETIQ_ALTO < 8) debajo = true
+          // Cerca de los bordes se ancla al filo para no salirse.
+          const ancla = ex < PAD_X + 40 ? 'start' : ex > W - PAD_X - 40 ? 'end' : 'middle'
+          const tx = ancla === 'start' ? ex - 6 : ancla === 'end' ? ex + 6 : ex
           return (
             <g key={i}>
               <circle cx={ex} cy={ey} r="5" className={`cm-ext ${e.tipo}`} />
               <text
-                x={ex}
-                y={arriba ? ey - 22 : ey + 18}
-                textAnchor="middle"
+                x={tx}
+                y={debajo ? ey + 18 : ey - 22}
+                textAnchor={ancla}
                 className="cm-ext-hora"
               >
                 {horaCorta(e.time)}
               </text>
               <text
-                x={ex}
-                y={arriba ? ey - 9 : ey + 31}
-                textAnchor="middle"
+                x={tx}
+                y={debajo ? ey + 31 : ey - 9}
+                textAnchor={ancla}
                 className="cm-ext-nivel"
               >
                 {e.nivel.toFixed(1)} m
@@ -99,16 +111,22 @@ export function CurvaMarea({ serie, dia }: Props) {
             </g>
           )
         })}
-        {/* eje de horas */}
+        {/* eje de horas, en su banda propia */}
         {[0, 6, 12, 18, 24].map((h) => (
-          <text key={h} x={x(t0 + h * 3600_000)} y={H - 8} textAnchor="middle" className="cm-eje">
+          <text
+            key={h}
+            x={x(t0 + h * 3600_000)}
+            y={EJE_Y}
+            textAnchor={h === 0 ? 'start' : h === 24 ? 'end' : 'middle'}
+            className="cm-eje"
+          >
             {h === 0 || h === 24 ? '12 am' : h === 12 ? '12 pm' : h < 12 ? `${h} am` : `${h - 12} pm`}
           </text>
         ))}
       </svg>
       <figcaption className="cm-nota">
-        Marea <strong>estimada</strong> (modelo, no tabla oficial) ·{' '}
-        pleamares y bajamares con hora local
+        Marea <strong>estimada</strong> (modelo, no tabla oficial) · pleamares y
+        bajamares con hora local · alturas sobre el nivel medio del mar
       </figcaption>
     </figure>
   )

@@ -1,6 +1,7 @@
 // Marco común: header con estado del dato, y el aviso de seguridad
 // marítima — permanente, en todas las vistas, sin opción de quitarlo.
 
+import { useEffect, useRef } from 'react'
 import type { EstadoDatos } from '../state/hooks'
 import { irA } from '../state/hooks'
 import { haceCuanto } from '../lib/time'
@@ -75,8 +76,37 @@ export function EstadoDato({ estado }: { estado: EstadoDatos }) {
  * de apagarlo. La app informa; el capitán decide.
  */
 export function AvisoSeguridad() {
+  const ref = useRef<HTMLElement>(null)
+
+  // El aviso es fijo, así que el contenido necesita reservar SU altura
+  // real: cambia con el ancho y, sobre todo, con el tamaño de letra del
+  // teléfono (a 200 % mide el triple). Un padding fijo lo tapaba.
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const medir = () => {
+      document.documentElement.style.setProperty(
+        '--aviso-alto',
+        `${Math.ceil(el.getBoundingClientRect().height)}px`,
+      )
+    }
+    medir()
+    const ro = new ResizeObserver(medir)
+    ro.observe(el)
+    window.addEventListener('resize', medir)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', medir)
+    }
+  }, [])
+
   return (
-    <aside className="aviso-seguridad" role="note" aria-label="Aviso de seguridad marítima">
+    <aside
+      ref={ref}
+      className="aviso-seguridad"
+      role="note"
+      aria-label="Aviso de seguridad marítima"
+    >
       <Icono nombre="alerta" size={22} />
       <p>
         Esta app es informativa: trabaja con pronósticos y estimados que pueden

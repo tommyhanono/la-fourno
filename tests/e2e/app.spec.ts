@@ -67,20 +67,26 @@ test.describe('La Fourno', () => {
     await expect(seccion).toBeVisible({ timeout: 15_000 })
     await expect(seccion.getByText('Día por día')).toBeVisible()
     // semana completa: al menos 7 días listados (8 si la jornada de hoy sigue viva)
-    const filas = seccion.locator('.semana-fila')
+    const filas = seccion.locator('.dia')
     expect(await filas.count()).toBeGreaterThanOrEqual(7)
     for (let i = 0; i < (await filas.count()); i++) {
       const fila = filas.nth(i)
       // cada día trae su score y su destino (o el empate declarado)…
       await expect(fila.locator('.badge-score strong')).toHaveText(/^\d+$/)
       await expect(fila.locator('.dia-destino')).toContainText(
-        /Mejor destino:|Parejo en todos los puntos · sugerido:/,
+        /Mejor destino|Parejo en todos los puntos · sugerido/,
       )
-      // …y las horas de sol del día
-      await expect(fila.locator('.dia-extra')).toContainText(/sol \d+ [ap]m – \d+ [ap]m/)
+      // …las horas de sol CON minutos (truncarlas mentía sobre el ocaso)
+      await expect(fila.locator('.dia-extra')).toContainText(
+        /sol \d+:\d\d [ap]m – \d+:\d\d [ap]m/,
+      )
+      // …los cuatro datos del día, etiquetados
+      await expect(fila.locator('.dia-datos dt')).toHaveCount(4)
       // …y NO bloques de horas: el día se muestra completo
-      expect(await fila.locator('.semana-datos').textContent()).not.toMatch(/[ap]m/)
+      expect(await fila.locator('.dia-datos').textContent()).not.toMatch(/[ap]m/)
     }
+    // exactamente un día marcado como el mejor de la semana
+    expect(await seccion.locator('.dia-sello').count()).toBeLessThanOrEqual(1)
     // el destino es un link que abre su punto
     const destino = filas.first().locator('.dia-destino a')
     await expect(destino).toHaveAttribute('href', /#\/punto\//)
@@ -88,6 +94,69 @@ test.describe('La Fourno', () => {
     const ultima = filas.last()
     await ultima.locator('summary').click()
     await expect(ultima.locator('.desglose-lista .pts').first()).toHaveText(/^[+−]\d/)
+  })
+
+  test('el aviso fijo no tapa contenido, ni con el texto agrandado', async ({ page }) => {
+    await mockApis(page)
+    for (const zoom of [1, 2]) {
+      for (const ruta of ['/', '/#/punto/contadora', '/#/punto/las-sirenas', '/#/ajustes']) {
+        await page.goto(ruta)
+        if (zoom > 1) {
+          await page.addStyleTag({ content: `html { font-size: ${16 * zoom}px; }` })
+        }
+        await expect(page.locator('.aviso-seguridad')).toBeVisible({ timeout: 15_000 })
+        await page.waitForTimeout(700)
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+        await page.waitForTimeout(300)
+        const tapados = await page.evaluate(() => {
+          const a = document.querySelector('.aviso-seguridad')!.getBoundingClientRect()
+          const malos: string[] = []
+          for (const el of document.querySelectorAll(
+            'main .tarjeta, main .dia, main .fila-punto, main h2, main summary',
+          )) {
+            const b = el.getBoundingClientRect()
+            if (b.height === 0) continue
+            const solape = Math.min(b.bottom, a.bottom) - Math.max(b.top, a.top)
+            if (solape > 2 && b.left < a.right && b.right > a.left) {
+              malos.push((el.textContent || '').trim().slice(0, 30))
+            }
+          }
+          return malos
+        })
+        expect(tapados, `${ruta} a ${zoom * 100} %`).toEqual([])
+      }
+    }
+  })
+
+  test('la curva de marea no encima sus etiquetas con el eje', async ({ page }) => {
+    await mockApis(page)
+    await page.goto('/#/punto/contadora')
+    await expect(page.locator('.curva-marea svg')).toBeVisible({ timeout: 15_000 })
+    const choques = await page.evaluate(() => {
+      const svg = document.querySelector('.curva-marea svg')!
+      const textos = [...svg.querySelectorAll('text')].map((t) => ({
+        t: t.textContent || '',
+        r: t.getBoundingClientRect(),
+        eje: t.classList.contains('cm-eje'),
+      }))
+      const svgR = svg.getBoundingClientRect()
+      const malos: string[] = []
+      for (let i = 0; i < textos.length; i++) {
+        // ninguna etiqueta se sale del gráfico
+        if (textos[i].r.left < svgR.left - 1 || textos[i].r.right > svgR.right + 1) {
+          malos.push(`fuera: ${textos[i].t}`)
+        }
+        for (let j = i + 1; j < textos.length; j++) {
+          const a = textos[i].r
+          const b = textos[j].r
+          const solapa =
+            a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1
+          if (solapa) malos.push(`${textos[i].t} × ${textos[j].t}`)
+        }
+      }
+      return malos
+    })
+    expect(choques).toEqual([])
   })
 
   test('navega a cada uno de los 9 puntos', async ({ page }) => {

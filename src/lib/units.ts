@@ -53,9 +53,29 @@ export function fmtMarea(m: number | null | undefined): string {
   return `${m.toFixed(1)} m`
 }
 
+/**
+ * El dato de marea es altura sobre el NIVEL MEDIO del mar, así que un
+ * número solo ("−1.2 m") no dice nada por sí mismo. Esto explica
+ * respecto a qué, que es lo que hace el número utilizable.
+ */
+export function refMarea(m: number | null | undefined): string | undefined {
+  if (m == null || Number.isNaN(m)) return undefined
+  if (Math.abs(m) < 0.05) return 'en el nivel medio'
+  return m > 0 ? 'sobre el nivel medio' : 'bajo el nivel medio'
+}
+
 const RUMBOS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO']
 
 export function rumbo(grados: number | null | undefined): string {
   if (grados == null || Number.isNaN(grados)) return '—'
   return RUMBOS[Math.round((((grados % 360) + 360) % 360) / 22.5) % 16]
+}
+
+/**
+ * Viento y oleaje se nombran por DONDE VIENEN (convención náutica y la
+ * que usa Open-Meteo). Sin el "del", el rumbo se puede leer al revés.
+ */
+export function procedencia(grados: number | null | undefined): string {
+  const r = rumbo(grados)
+  return r === '—' ? r : `del ${r}`
 }

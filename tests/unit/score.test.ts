@@ -39,6 +39,20 @@ describe('scoreBloque — casos borde', () => {
     expect(r.contribuciones.some((c) => c.clave === 'tormenta')).toBe(true)
   })
 
+  it('el score distingue días parecidos: interpola, no salta por cajones', () => {
+    // Tres días que antes caían todos en el mismo tramo y daban el
+    // mismo número. Ahora tienen que ordenarse de mejor a peor.
+    const a = scoreBloque({ ...base, vientoKt: 9, rachaKt: 11 })
+    const b = scoreBloque({ ...base, vientoKt: 10.5, rachaKt: 12 })
+    const c = scoreBloque({ ...base, vientoKt: 12, rachaKt: 14 })
+    expect(a.total).toBeGreaterThan(b.total)
+    expect(b.total).toBeGreaterThan(c.total)
+    // los anclajes de la calibración se respetan tal cual
+    const enAnclaje = scoreBloque({ ...base, vientoKt: 5, rachaKt: 8 })
+    const viento = enAnclaje.contribuciones.find((x) => x.clave === 'viento')!
+    expect(viento.puntos).toBe(CALIBRACION.pesos.viento) // frac 1.0 exacto
+  })
+
   it('tormentaFrac escala el castigo sin cambiar los bloques de 2 h', () => {
     const conTormenta = { ...base, weatherCodes: [0, 95] }
     const completo = scoreBloque(conTormenta)

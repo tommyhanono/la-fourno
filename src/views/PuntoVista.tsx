@@ -5,7 +5,7 @@ import { useMemo } from 'react'
 import { PUNTOS, puntoPorId } from '../config/puntos'
 import type { EstadoDatos } from '../state/hooks'
 import type { Unidades } from '../lib/units'
-import { fmtViento, fmtOla, fmtTemp, fmtMarea, rumbo } from '../lib/units'
+import { fmtViento, fmtOla, fmtTemp, fmtMarea, refMarea, procedencia } from '../lib/units'
 import { Header, AvisoSeguridad } from '../components/Marco'
 import { CurvaMarea } from '../components/CurvaMarea'
 import { Timeline } from '../components/Timeline'
@@ -134,7 +134,7 @@ function VistaNav({
             icono="viento"
             titulo="Viento"
             valor={fmtViento(f.hourly.wind_speed_10m[nowIdx], unidades)}
-            extra={`rachas ${fmtViento(f.hourly.wind_gusts_10m[nowIdx], unidades)} · ${rumbo(f.hourly.wind_direction_10m[nowIdx])}`}
+            extra={`rachas ${fmtViento(f.hourly.wind_gusts_10m[nowIdx], unidades)} · ${procedencia(f.hourly.wind_direction_10m[nowIdx])}`}
           />
           <Dato
             icono={cielo.icono}
@@ -152,7 +152,7 @@ function VistaNav({
             valor={fmtOla(m && olaIdx >= 0 ? m.hourly.wave_height[olaIdx] : null, unidades)}
             extra={
               m && olaIdx >= 0 && m.hourly.wave_period[olaIdx] != null
-                ? `cada ${Math.round(m.hourly.wave_period[olaIdx]!)} s del ${rumbo(m.hourly.wave_direction[olaIdx])}`
+                ? `cada ${Math.round(m.hourly.wave_period[olaIdx]!)} s ${procedencia(m.hourly.wave_direction[olaIdx])}`
                 : undefined
             }
           />
@@ -160,7 +160,7 @@ function VistaNav({
             icono={tendencia === 'vaciando' ? 'marea-baja' : 'marea-sube'}
             titulo="Marea (estimada)"
             valor={fmtMarea(nivel)}
-            extra={tendencia ?? undefined}
+            extra={[refMarea(nivel), tendencia].filter(Boolean).join(' · ') || undefined}
           />
           <Dato
             icono="sol"
@@ -250,7 +250,7 @@ function VistaPlaya({
             icono={tendencia === 'vaciando' ? 'marea-baja' : 'marea-sube'}
             titulo="Marea (estimada)"
             valor={fmtMarea(nivel)}
-            extra={tendencia ?? undefined}
+            extra={[refMarea(nivel), tendencia].filter(Boolean).join(' · ') || undefined}
           />
           <SolHoy f={f} />
         </div>
@@ -270,6 +270,7 @@ function VistaPlaya({
 
       <section className="tarjeta" aria-label="Días de playa esta semana">
         <h2>¿Qué día de playa?</h2>
+        <p className="sub-seccion">Puntuado sobre las horas de playa: 9 am – 4 pm.</p>
         <ul className="semana">
           {dias.map((d) => (
             <li key={d.clave} className="semana-fila">
@@ -324,6 +325,11 @@ function SemanaNav({ f, m, unidades }: { f: F; m: M; unidades: Unidades }) {
   return (
     <section className="tarjeta" aria-label="Resumen semanal">
       <h2>La semana</h2>
+      {/* La franja se declara: el "Día por día" del inicio usa la jornada
+          de 9 am – 4 pm y daría otros números para el mismo día. */}
+      <p className="sub-seccion">
+        Máximos de cada día entre 6 am y 6 pm, en este punto.
+      </p>
       <ul className="semana">
         {dias.map((d) => (
           <li key={d.dia} className="semana-fila">

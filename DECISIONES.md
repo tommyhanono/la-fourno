@@ -138,3 +138,57 @@ Tres decisiones que salieron de probarlo con datos reales de agosto:
    destinos quedan dentro de 3 puntos, la fila dice "parejo en todos
    los puntos" en vez de vender un ganador que el pronóstico no
    distingue.
+
+## 11. Revisión de exactitud y estilo (2026-08-15)
+
+Pasada completa a pedido de Tommy ("que la información esté exacta y el
+estilo como debe ser"). Lo que se corrigió y por qué:
+
+**Exactitud**
+
+1. **Las horas de sol se truncaban.** "sol 6 am – 6 pm" cuando en
+   realidad amanece 6:10 y se pone 6:35 pm. Para volver con luz, esos
+   35 minutos importan: ahora van con minutos (`horaCorta`).
+2. **La marea era un número sin referencia.** "−1.9 m" no dice nada por
+   sí solo; el dato es altura sobre el nivel medio del mar. Ahora lo
+   declara (`refMarea`) y la curva lo repite al pie.
+3. **El rumbo del viento no decía "del".** Viento y oleaje se nombran
+   por DONDE VIENEN; sin la preposición se puede leer al revés
+   (`procedencia`). El oleaje ya lo decía; ahora los dos.
+4. **El resumen del día mostraba un promedio ponderado** como si fuera
+   una medición. Ahora muestra el **rango medido** ("2–9 kt"), que sí
+   existe en el pronóstico. El score sigue usando su número interno, y
+   el desglose lo explica.
+5. **Dos pantallas daban cifras distintas del mismo día** sin decir por
+   qué: "Día por día" usa la jornada 9 am – 4 pm del corredor y "La
+   semana" del punto usa máximos de 6 am – 6 pm en ese punto. Cada una
+   declara ahora su franja.
+6. **"Ocean Reef" se confundía con la marina de salida** → "Islas Ocean
+   Reef".
+7. **El score de playa saturaba**: seis días seguidos daban exactamente
+   40 porque los tramos de la calibración son escalones. Ahora `trFrac`
+   **interpola** entre ellos; los tramos siguen siendo la calibración
+   (son los puntos de anclaje) y los valores exactos no se movieron.
+8. **La pantalla parecía contradecirse**: arriba "mañana 8–10 am, 65" y
+   abajo "mañana, 11". Son dos preguntas distintas (el mejor MOMENTO vs.
+   el día entero); ahora cada día muestra también su mejor momento, que
+   es lo que vuelve legible la diferencia.
+
+**Estilo y layout** (medidos con `scripts/audita-layout.mjs`)
+
+9. **El aviso fijo tapaba contenido.** `main` reservaba 96 px fijos pero
+   el aviso mide 90 px a 390 px, 107 px a 320 px y **302 px con el texto
+   del teléfono al 200 %**. Ahora el propio aviso publica su altura en
+   `--aviso-alto` (ResizeObserver) y el contenido reserva esa.
+10. **La curva de marea encimaba las etiquetas de bajamar con el eje de
+    horas.** Banda inferior reservada, etiquetas que se voltean si no
+    caben y anclaje al filo en los bordes.
+11. **WebKit le daba caja a los desgloses cerrados** (por el `display`
+    explícito de sus items) y quedaban tapados: se ocultan a mano.
+12. Scroll horizontal con el texto al 200 % (badges y rutas de archivo),
+    "Temperatura" desbordando a 320 px, el título "Santa Clara — Las
+    Sirenas" cortado con puntos suspensivos, y el "0" pelado del score
+    de playa que se leía como error (ahora dice "playa hoy").
+13. **Jerarquía**: ocho tarjetas idénticas obligaban a comparar ocho
+    números a mano. El mejor día lleva sello, en bloque sólido — el
+    acento como texto chico no llega a AA (lo cazó Lighthouse).
