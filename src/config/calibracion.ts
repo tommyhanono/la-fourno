@@ -19,6 +19,27 @@ export const CALIBRACION = {
   bloqueHoras: 2,
 
   /**
+   * Jornada típica de Tommy: sale 9–10 am y vuelve 3–4 pm.
+   * La vista "Día por día" evalúa el día COMPLETO dentro de esta
+   * franja (peor caso de viento/ola/tormenta en toda la jornada) y
+   * elige el mejor destino del día. llegadaHoras = cuánto tarda el
+   * cruce para evaluar la marea al llegar al destino.
+   */
+  jornada: {
+    desdeHora: 9, // 9 am
+    hastaHora: 16, // 4 pm
+    llegadaHoras: 2,
+    /**
+     * Cómo se resume una jornada larga en un número. El peor caso puro
+     * de 7 h no sirve en temporada lluviosa (un chubasco de las 3 pm
+     * mataría TODOS los días y no podrías comparar). Se usa
+     * promedio y pico mezclados: 0 = solo el promedio del día,
+     * 1 = solo el peor momento. 0.5 = lo típico, ponderado al pico.
+     */
+    pesoPico: 0.5,
+  },
+
+  /**
    * Pesos base (suman 100). El orden ES la jerarquía:
    * viento manda, después sol; ola y marea completan.
    */
@@ -91,6 +112,13 @@ export const CALIBRACION = {
     // (documentado en DECISIONES.md).
     tormentaCodes: [95, 96, 99],
     tormentaPenal: 60, // mata el bloque aunque el resto esté perfecto
+    /**
+     * En franjas largas (la jornada del día) la tormenta penaliza en
+     * proporción a las horas que ocupa, y solo marca PELIGRO si tapa
+     * al menos esta fracción de la jornada. En los bloques de 2 h no
+     * aplica: ahí cualquier tormenta es peligro, sin negociar.
+     */
+    tormentaPeligroFrac: 0.35,
     capeAltoJkg: 2500, // atmósfera muy cargada sin tormenta declarada
     capeAltoPenal: 20,
     lluviaFuerteMmH: 4,

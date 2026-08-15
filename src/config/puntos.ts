@@ -20,6 +20,12 @@ export interface Punto {
   esSalida?: boolean
   /** true = destino de referencia del corredor del recomendador */
   esDestino?: boolean
+  /**
+   * true = punto para consultar el clima, NO un destino de jornada.
+   * "Día por día" no lo propone como mejor destino (si está a minutos
+   * de la marina siempre ganaría, y no es a donde vas a pasar el día).
+   */
+  soloReferencia?: boolean
   /** La geolocalización tiene ambigüedad declarada en DECISIONES.md */
   estimado?: boolean
 }
@@ -61,6 +67,9 @@ export const PUNTOS: Punto[] = [
     lat: 8.9688, // Islas Ocean Reef (OSM)
     lon: -79.5022,
     tipo: 'nav',
+    // A minutos de la dársena: sirve para mirar cómo está el mar
+    // ahí afuera, no para "el mejor destino del día".
+    soloReferencia: true,
   },
   {
     id: 'pearl-island',

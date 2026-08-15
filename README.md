@@ -16,6 +16,12 @@ Condiciones + recomendador. Nada más, a propósito.
 - **Pantalla principal**: las 3 mejores ventanas de la semana (bloques
   de 2 h, solo horas de luz), con score 0–100 y desglose abrible que
   muestra los números ("viento 8 kt: +40 · despejado: +30 · …").
+- **Día por día**: la semana completa, un día por fila, evaluada sobre
+  tu jornada de siempre (9 am – 4 pm) — sin bloques de horas. Cada día
+  trae viento y ola típicos (con su pico), cielo, lluvia, horas de sol,
+  a qué hora entra la tormenta si la hay, y **el mejor destino según el
+  clima de ese día**. Si todos los puntos quedan iguales, lo dice en vez
+  de inventar un ganador.
 - **9 puntos precargados**: Marina Ocean Reef, Contadora, Chapera,
   Ocean Reef (islas), Pearl Island, Mogo Mogo, Caracoles + las playas
   Santa Clara (Las Sirenas) y Coronado con su "score de día de playa".
@@ -50,7 +56,9 @@ visible.
 `src/config/puntos.ts` — nombre, coordenadas, tipo (`nav` o `playa`).
 Comentado y con las fuentes de cada coordenada. "Caracoles" está
 marcado como estimado (islotes NE de Contadora, sin nombre oficial en
-cartas).
+cartas). `soloReferencia: true` = punto para mirar el clima que **no**
+se propone como destino del día (así está Ocean Reef islas, que por
+estar a minutos de la dársena siempre ganaría).
 
 ## Calibrar el recomendador
 
@@ -58,6 +66,11 @@ cartas).
 marea 10), tramos de viento y ola para el CCX 40, penalizaciones de
 seguridad (tormenta, mar corto, mar grueso). Todo comentado; edita,
 guarda y listo.
+
+Ahí también vive `jornada`: **a qué hora sales y vuelves** (9 am – 4 pm
+por defecto) y `pesoPico`, que decide si el score del día mira lo
+típico o el peor momento (0.5 = mezcla). Si cambias tu horario de
+salida, cambia solo ese bloque.
 
 ## Instalar el PWA en iPhone
 

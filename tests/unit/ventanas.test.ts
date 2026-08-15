@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   bloquesCorredor,
   mejoresVentanas,
-  resumenSemanal,
+  jornadasSemana,
   diasPlaya,
 } from '../../src/lib/ventanas'
 import { datosSinteticos, DIA_BASE } from '../fixtures/genera'
@@ -93,29 +93,94 @@ describe('mejores ventanas', () => {
   })
 })
 
-describe('resumen día por día', () => {
+describe('jornadas día por día', () => {
   it('cubre TODOS los días del pronóstico, incluso los feos', () => {
-    const dias = resumenSemanal(bloquesCorredor(datosSinteticos()))
-    // 8 días de pronóstico, todos con bloques de luz futuros a las 5 am
+    const dias = jornadasSemana(datosSinteticos())
+    // 8 días de pronóstico, todos con jornada futura a las 5 am
     expect(dias).toHaveLength(8)
     const claves = dias.map((d) => d.clave)
     expect(claves).toContain('2026-08-12') // miércoles de tormenta
     expect(claves).toContain('2026-08-14') // viernes ventoso
     expect(claves).toContain('2026-08-16') // el domingo que viene
-    for (const d of dias) expect(d.mejorBloque).not.toBeNull()
-  })
-
-  it('viene ordenado cronológicamente y el mejor bloque manda por score', () => {
-    const bloques = bloquesCorredor(datosSinteticos())
-    const dias = resumenSemanal(bloques)
     for (let i = 1; i < dias.length; i++) {
       expect(dias[i].dia.getTime()).toBeGreaterThan(dias[i - 1].dia.getTime())
     }
+  })
+
+  it('cada día trae un mejor destino de navegación (nunca la marina)', () => {
+    const dias = jornadasSemana(datosSinteticos())
     for (const d of dias) {
-      const delDia = bloques.filter((b) => claveDia(b.inicio) === d.clave)
-      const max = Math.max(...delDia.map((b) => b.score.total))
-      expect(d.mejorBloque!.score.total).toBe(max)
+      expect(d.mejorDestino.tipo).toBe('nav')
+      expect(d.mejorDestino.esSalida).toBeFalsy()
+      // los puntos de consulta local no se proponen como destino
+      expect(d.mejorDestino.soloReferencia).toBeFalsy()
+      expect(d.destinos.map((x) => x.punto.id)).not.toContain('ocean-reef-islas')
+      // el mejor destino encabeza la lista ordenada por score
+      expect(d.destinos[0].punto.id).toBe(d.mejorDestino.id)
+      for (let i = 1; i < d.destinos.length; i++) {
+        expect(d.destinos[i].score.total).toBeLessThanOrEqual(
+          d.destinos[i - 1].score.total,
+        )
+      }
     }
+  })
+
+  it('evalúa la jornada entera: la tormenta del mediodía mata el miércoles', () => {
+    const dias = jornadasSemana(datosSinteticos())
+    // La tormenta es 11 am – 3 pm: un bloque de 9-11 se le escaparía,
+    // pero la jornada 9 am – 4 pm la agarra sí o sí (5 de 7 h > 35 %).
+    const miercoles = dias.find((d) => d.clave === '2026-08-12')!
+    expect(miercoles.score.peligro).toBe(true)
+    expect(miercoles.tormentaDesde).not.toBeNull()
+    expect(horaPanama(miercoles.tormentaDesde!)).toBe(11)
+  })
+
+  it('una tormenta corta penaliza proporcional pero NO mata el día', () => {
+    const datos = datosSinteticos()
+    // Solo 1 h de tormenta (2 pm) el jueves: 1/7 < 35 % → sin peligro.
+    for (const f of datos.forecast) {
+      for (let i = 0; i < f.hourly.time.length; i++) {
+        if (f.hourly.time[i] === '2026-08-13T14:00') {
+          f.hourly.weather_code[i] = 95
+        }
+      }
+    }
+    const jueves = jornadasSemana(datos).find((d) => d.clave === '2026-08-13')!
+    expect(jueves.score.peligro).toBe(false)
+    expect(jueves.score.total).toBeGreaterThan(0)
+    const penal = jueves.score.contribuciones.find((c) => c.clave === 'tormenta')!
+    expect(penal).toBeDefined()
+    // 1 de 7 h del penal completo (60), no los 60 enteros
+    expect(Math.abs(penal.puntos)).toBeLessThan(15)
+    expect(jueves.score.total).toBeLessThan(
+      jornadasSemana(datosSinteticos()).find((d) => d.clave === '2026-08-13')!.score
+        .total,
+    )
+  })
+
+  it('el resumen del día trae picos, sol y comparación de destinos', () => {
+    const dias = jornadasSemana(datosSinteticos())
+    const lunes = dias[0]
+    // viento típico ≤ pico del día
+    expect(lunes.picos.vientoKt!).toBeGreaterThanOrEqual(lunes.entrada.vientoKt!)
+    expect(lunes.sol).not.toBeNull()
+    expect(horaPanama(lunes.sol!.sale)).toBe(6)
+    // el fixture da el mismo clima a todos los puntos → empate declarado
+    expect(lunes.parejo).toBe(true)
+  })
+
+  it('el viernes ventoso puntúa peor que un día normal', () => {
+    const dias = jornadasSemana(datosSinteticos())
+    const viernes = dias.find((d) => d.clave === '2026-08-14')!
+    const jueves = dias.find((d) => d.clave === '2026-08-13')!
+    expect(viernes.score.total).toBeLessThan(jueves.score.total)
+  })
+
+  it('la jornada de hoy ya terminada no aparece', () => {
+    vi.setSystemTime(new Date(`${DIA_BASE}T17:00:00-05:00`)) // 5 pm
+    const dias = jornadasSemana(datosSinteticos())
+    expect(dias).toHaveLength(7)
+    expect(dias[0].clave).toBe('2026-08-11')
   })
 })
 

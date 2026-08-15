@@ -58,7 +58,7 @@ test.describe('La Fourno', () => {
     ).toContainText(/viento \d+ kt/)
   })
 
-  test('día por día: la semana entera visible, cada día con su score y desglose', async ({
+  test('día por día: la semana entera, día completo con score, mejor destino y desglose', async ({
     page,
   }) => {
     await mockApis(page)
@@ -66,14 +66,25 @@ test.describe('La Fourno', () => {
     const seccion = page.locator('.seccion-dias')
     await expect(seccion).toBeVisible({ timeout: 15_000 })
     await expect(seccion.getByText('Día por día')).toBeVisible()
-    // semana completa: al menos 7 días listados (8 si hoy aún tiene bloques)
+    // semana completa: al menos 7 días listados (8 si la jornada de hoy sigue viva)
     const filas = seccion.locator('.semana-fila')
     expect(await filas.count()).toBeGreaterThanOrEqual(7)
-    // cada día trae su score…
     for (let i = 0; i < (await filas.count()); i++) {
-      await expect(filas.nth(i).locator('.badge-score strong')).toHaveText(/^\d+$/)
+      const fila = filas.nth(i)
+      // cada día trae su score y su destino (o el empate declarado)…
+      await expect(fila.locator('.badge-score strong')).toHaveText(/^\d+$/)
+      await expect(fila.locator('.dia-destino')).toContainText(
+        /Mejor destino:|Parejo en todos los puntos · sugerido:/,
+      )
+      // …y las horas de sol del día
+      await expect(fila.locator('.dia-extra')).toContainText(/sol \d+ [ap]m – \d+ [ap]m/)
+      // …y NO bloques de horas: el día se muestra completo
+      expect(await fila.locator('.semana-datos').textContent()).not.toMatch(/[ap]m/)
     }
-    // …y su desglose abrible con números
+    // el destino es un link que abre su punto
+    const destino = filas.first().locator('.dia-destino a')
+    await expect(destino).toHaveAttribute('href', /#\/punto\//)
+    // el desglose del día se abre con números
     const ultima = filas.last()
     await ultima.locator('summary').click()
     await expect(ultima.locator('.desglose-lista .pts').first()).toHaveText(/^[+−]\d/)

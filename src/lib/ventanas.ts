@@ -2,7 +2,7 @@
 // (Contadora como destino de referencia), los puntúa y saca las
 // 3 mejores ventanas de la semana. Solo horas de luz.
 
-import { PUNTOS, PUNTO_SALIDA, PUNTO_DESTINO } from '../config/puntos'
+import { PUNTOS, PUNTO_SALIDA, PUNTO_DESTINO, type Punto } from '../config/puntos'
 import { CALIBRACION } from '../config/calibracion'
 import type { DatosApp, PuntoForecast, PuntoMarine } from './types'
 import {
@@ -50,15 +50,17 @@ function indicesBloque(times: string[], inicio: Date, horas: number): number[] {
 
 function entradaCorredor(
   inicio: Date,
+  horas: number,
   fs: PuntoForecast[],
   ms: (PuntoMarine | null)[],
+  destino: Punto,
   mareaDestino: SerieMarea | null,
+  llegada: Date,
 ): EntradaBloque {
-  const horas = CALIBRACION.bloqueHoras
   // Peor caso entre salida y destino: el corredor se navega entero.
   const pares: { f: PuntoForecast; m: PuntoMarine | null }[] = [
     { f: fs[idx(PUNTO_SALIDA.id)], m: ms[idx(PUNTO_SALIDA.id)] },
-    { f: fs[idx(PUNTO_DESTINO.id)], m: ms[idx(PUNTO_DESTINO.id)] },
+    { f: fs[idx(destino.id)], m: ms[idx(destino.id)] },
   ]
 
   const vientos: (number | null)[] = []
@@ -90,8 +92,6 @@ function entradaCorredor(
     }
   }
 
-  // Marea al momento de LLEGADA al destino (fin del bloque de salida).
-  const llegada = new Date(inicio.getTime() + horas * 3600_000)
   return {
     vientoKt: maxNum(vientos),
     rachaKt: maxNum(rachas),
@@ -130,7 +130,16 @@ export function bloquesCorredor(datos: DatosApp): Bloque[] {
       if (fin <= ahora) continue // bloque ya pasado
       if (inicio < new Date(sunrise.getTime() - 45 * 60_000)) continue
       if (fin > new Date(sunset.getTime() + 45 * 60_000)) continue
-      const entrada = entradaCorredor(inicio, datos.forecast, datos.marine, marea)
+      // Marea al momento de LLEGADA al destino (fin del bloque de salida).
+      const entrada = entradaCorredor(
+        inicio,
+        CALIBRACION.bloqueHoras,
+        datos.forecast,
+        datos.marine,
+        PUNTO_DESTINO,
+        marea,
+        fin,
+      )
       bloques.push({ inicio, fin, score: scoreBloque(entrada), entrada })
     }
   }
@@ -158,28 +167,214 @@ export function mejoresVentanas(bloques: Bloque[], n = 3): Bloque[] {
   return elegidos.sort((a, b) => a.inicio.getTime() - b.inicio.getTime())
 }
 
-export interface DiaResumen {
+export interface DiaJornada {
   dia: Date
   clave: string
-  mejorBloque: Bloque | null
+  /** Condiciones de toda la jornada (salida → mejor destino). */
+  entrada: EntradaBloque
+  /** Picos del día, para el "hasta X" del resumen. */
+  picos: { vientoKt: number | null; olaM: number | null }
+  /** Hora a la que empieza la tormenta dentro de la jornada, si la hay. */
+  tormentaDesde: Date | null
+  /** Score del día yendo al mejor destino. */
+  score: ResultadoScore
+  mejorDestino: Punto
+  /** Todos los destinos del día, de mejor a peor. */
+  destinos: { punto: Punto; score: ResultadoScore }[]
+  /** true si todos los destinos quedaron prácticamente iguales. */
+  parejo: boolean
+  /** Amanece / se pone, del día. */
+  sol: { sale: Date; sePone: Date } | null
 }
 
-/** Mejor bloque por día — para la vista semanal. */
-export function resumenSemanal(bloques: Bloque[]): DiaResumen[] {
-  const porDia = new Map<string, Bloque[]>()
-  for (const b of bloques) {
-    const k = claveDia(b.inicio)
-    if (!porDia.has(k)) porDia.set(k, [])
-    porDia.get(k)!.push(b)
+/**
+ * Diferencia de score por debajo de la cual los destinos se consideran
+ * empatados: el pronóstico no distingue tan fino entre islas vecinas y
+ * vender un "ganador" sería ruido.
+ */
+const UMBRAL_PAREJO = 3
+
+/** Primera hora con tormenta dentro de la jornada, en la salida o el destino. */
+function primeraTormenta(f: PuntoForecast, inicio: Date, horas: number): Date | null {
+  const codes = CALIBRACION.seguridad.tormentaCodes as readonly number[]
+  for (const i of indicesBloque(f.hourly.time, inicio, horas)) {
+    const w = f.hourly.weather_code[i]
+    if (w != null && codes.includes(w)) return parsePanama(f.hourly.time[i])
   }
-  return [...porDia.entries()].map(([clave, bs]) => ({
-    clave,
-    dia: bs[0].inicio,
-    mejorBloque: bs.reduce<Bloque | null>(
-      (best, b) => (best == null || b.score.total > best.score.total ? b : best),
-      null,
-    ),
-  }))
+  return null
+}
+
+/** Mezcla promedio y pico según jornada.pesoPico (0 = medio, 1 = pico). */
+function tipico(prom: number | null, pico: number | null): number | null {
+  const w = CALIBRACION.jornada.pesoPico
+  if (prom == null) return pico
+  if (pico == null) return prom
+  return prom * (1 - w) + pico * w
+}
+
+/**
+ * Condiciones de la jornada completa hacia un destino. A diferencia de
+ * los bloques de 2 h (peor caso), aquí se resume el DÍA: viento y ola
+ * son lo típico ponderado al pico, y la tormenta entra con la fracción
+ * de horas que ocupa. Ver calibracion.jornada.
+ */
+function entradaJornada(
+  inicio: Date,
+  horas: number,
+  fs: PuntoForecast[],
+  ms: (PuntoMarine | null)[],
+  destino: Punto,
+  mareaDestino: SerieMarea | null,
+  llegada: Date,
+): { entrada: EntradaBloque; picos: { vientoKt: number | null; olaM: number | null } } {
+  const pares: { f: PuntoForecast; m: PuntoMarine | null }[] = [
+    { f: fs[idx(PUNTO_SALIDA.id)], m: ms[idx(PUNTO_SALIDA.id)] },
+    { f: fs[idx(destino.id)], m: ms[idx(destino.id)] },
+  ]
+
+  const vProm: (number | null)[] = []
+  const vPico: (number | null)[] = []
+  const rachas: (number | null)[] = []
+  const nubes: (number | null)[] = []
+  const probs: (number | null)[] = []
+  const lluvias: (number | null)[] = []
+  const oProm: (number | null)[] = []
+  const oPico: (number | null)[] = []
+  const periodos: (number | null)[] = []
+  const capes: (number | null)[] = []
+  const codes: number[] = []
+  let horasTormenta = 0
+  let horasTotal = 0
+
+  const esTormenta = (w: number | null | undefined) =>
+    w != null && (CALIBRACION.seguridad.tormentaCodes as readonly number[]).includes(w)
+
+  for (const { f, m } of pares) {
+    const ii = indicesBloque(f.hourly.time, inicio, horas)
+    vProm.push(meanNum(ii.map((i) => f.hourly.wind_speed_10m[i])))
+    vPico.push(maxNum(ii.map((i) => f.hourly.wind_speed_10m[i])))
+    rachas.push(maxNum(ii.map((i) => f.hourly.wind_gusts_10m[i])))
+    nubes.push(meanNum(ii.map((i) => f.hourly.cloud_cover[i])))
+    probs.push(meanNum(ii.map((i) => f.hourly.precipitation_probability[i])))
+    lluvias.push(
+      tipico(
+        meanNum(ii.map((i) => f.hourly.precipitation[i])),
+        maxNum(ii.map((i) => f.hourly.precipitation[i])),
+      ),
+    )
+    capes.push(
+      tipico(
+        meanNum(ii.map((i) => f.hourly.cape[i])),
+        maxNum(ii.map((i) => f.hourly.cape[i])),
+      ),
+    )
+    // Las horas de tormenta se cuentan una sola vez: el peor de los dos
+    // extremos del corredor manda.
+    let tormentaAqui = 0
+    for (const i of ii) {
+      const w = f.hourly.weather_code[i]
+      if (w != null) codes.push(w)
+      if (esTormenta(w)) tormentaAqui++
+    }
+    horasTormenta = Math.max(horasTormenta, tormentaAqui)
+    horasTotal = Math.max(horasTotal, ii.length)
+    if (m) {
+      const im = indicesBloque(m.hourly.time, inicio, horas)
+      oProm.push(meanNum(im.map((i) => m.hourly.wave_height[i])))
+      oPico.push(maxNum(im.map((i) => m.hourly.wave_height[i])))
+      periodos.push(minNum(im.map((i) => m.hourly.wave_period[i])))
+    }
+  }
+
+  const vientoPico = maxNum(vPico)
+  const olaPico = maxNum(oPico)
+  return {
+    picos: { vientoKt: vientoPico, olaM: olaPico },
+    entrada: {
+      vientoKt: tipico(maxNum(vProm), vientoPico),
+      rachaKt: maxNum(rachas),
+      nubosidadPct: meanNum(nubes),
+      probLluviaPct: maxNum(probs),
+      lluviaMmH: maxNum(lluvias),
+      olaM: tipico(maxNum(oProm), olaPico),
+      periodoS: minNum(periodos),
+      weatherCodes: codes,
+      tormentaFrac: horasTotal > 0 ? horasTormenta / horasTotal : 0,
+      capeJkg: maxNum(capes),
+      mareaRel: mareaDestino ? nivelRelativo(mareaDestino, llegada) : null,
+      mareaTendencia: mareaDestino ? tendenciaEn(mareaDestino, llegada) : null,
+    },
+  }
+}
+
+/**
+ * El día completo, día por día — sin bloques de horas. Cada día se
+ * evalúa sobre la jornada típica (calibracion.jornada, 9 am – 4 pm)
+ * contra CADA destino de navegación, y gana el de mejor score: ese es
+ * "el mejor destino según el clima de ese día". Empates los decide el
+ * orden de puntos.ts.
+ */
+export function jornadasSemana(datos: DatosApp): DiaJornada[] {
+  const f0 = datos.forecast[idx(PUNTO_SALIDA.id)]
+  if (!f0) return []
+  const { desdeHora, hastaHora, llegadaHoras } = CALIBRACION.jornada
+  const destinos = PUNTOS.filter(
+    (p) => p.tipo === 'nav' && !p.esSalida && !p.soloReferencia,
+  )
+  if (destinos.length === 0) return []
+
+  // Serie de marea por destino, una sola vez.
+  const mareas = new Map<string, SerieMarea | null>()
+  for (const p of destinos) {
+    const m = datos.marine[idx(p.id)]
+    mareas.set(
+      p.id,
+      m ? serieMarea(m.hourly.time, m.hourly.sea_level_height_msl) : null,
+    )
+  }
+
+  const ahora = new Date()
+  const out: DiaJornada[] = []
+  for (let d = 0; d < f0.daily.time.length; d++) {
+    const base = parsePanama(`${f0.daily.time[d]}T00:00`)
+    const inicio = new Date(base.getTime() + desdeHora * 3600_000)
+    const fin = new Date(base.getTime() + hastaHora * 3600_000)
+    if (fin <= ahora) continue // jornada de hoy ya terminada
+    const llegada = new Date(inicio.getTime() + llegadaHoras * 3600_000)
+
+    const scored = destinos
+      .map((p) => {
+        const { entrada, picos } = entradaJornada(
+          inicio,
+          hastaHora - desdeHora,
+          datos.forecast,
+          datos.marine,
+          p,
+          mareas.get(p.id) ?? null,
+          llegada,
+        )
+        return { punto: p, entrada, picos, score: scoreBloque(entrada) }
+      })
+      .sort((a, b) => b.score.total - a.score.total)
+    const mejor = scored[0]
+    const rango = mejor.score.total - scored[scored.length - 1].score.total
+    out.push({
+      dia: base,
+      clave: f0.daily.time[d],
+      entrada: mejor.entrada,
+      picos: mejor.picos,
+      tormentaDesde: primeraTormenta(f0, inicio, hastaHora - desdeHora),
+      score: mejor.score,
+      mejorDestino: mejor.punto,
+      destinos: scored.map(({ punto, score }) => ({ punto, score })),
+      parejo: rango <= UMBRAL_PAREJO,
+      sol: {
+        sale: parsePanama(f0.daily.sunrise[d]),
+        sePone: parsePanama(f0.daily.sunset[d]),
+      },
+    })
+  }
+  return out
 }
 
 /** Score de día de playa por día para un punto tipo 'playa'. */

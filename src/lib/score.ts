@@ -22,6 +22,13 @@ export interface EntradaBloque {
   periodoS: number | null
   /** códigos WMO del bloque */
   weatherCodes: number[]
+  /**
+   * Fracción de la franja con tormenta (0..1). Solo la usa la vista de
+   * jornada completa, donde un chubasco de una hora no puede pesar
+   * igual que una tarde entera de rayos. Sin este campo, cualquier
+   * tormenta penaliza completo y marca peligro (bloques de 2 h).
+   */
+  tormentaFrac?: number
   /** CAPE máximo, J/kg */
   capeJkg: number | null
   /** nivel de marea relativo 0..1 al llegar (null si no hay dato) */
@@ -184,14 +191,22 @@ export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): R
 
   // --- Seguridad (mata bloques, no negocia) ---
   const s = cal.seguridad
-  if (e.weatherCodes.some((w) => (s.tormentaCodes as readonly number[]).includes(w))) {
+  const hayTormenta = e.weatherCodes.some((w) =>
+    (s.tormentaCodes as readonly number[]).includes(w),
+  )
+  if (hayTormenta) {
+    // Sin tormentaFrac (bloques de 2 h) la tormenta pesa completa.
+    const frac = e.tormentaFrac == null ? 1 : Math.min(1, Math.max(0, e.tormentaFrac))
     c.push({
       clave: 'tormenta',
-      etiqueta: 'tormenta eléctrica pronosticada',
-      puntos: -s.tormentaPenal,
+      etiqueta:
+        e.tormentaFrac == null
+          ? 'tormenta eléctrica pronosticada'
+          : `tormenta en ${Math.round(frac * 100)} % de la jornada`,
+      puntos: -r1(s.tormentaPenal * frac),
       tipo: 'penal',
     })
-    peligro = true
+    peligro = e.tormentaFrac == null || frac >= s.tormentaPeligroFrac
   } else if (e.capeJkg != null && e.capeJkg > s.capeAltoJkg) {
     c.push({
       clave: 'cape',

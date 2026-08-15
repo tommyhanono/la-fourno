@@ -300,6 +300,34 @@ summary:focus-visible {
   margin-bottom: var(--space-3);
 }
 
+.dia-destino {
+  flex-basis: 100%;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+.dia-destino a {
+  color: var(--color-text);
+  font-weight: 700;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/* Esqueleto: ocupa el mismo alto que una fila con datos. */
+.semana-fila.hueco { color: var(--color-surface-2); }
+.semana-fila.hueco .badge-score { visibility: hidden; }
+.hueco-desglose {
+  flex-basis: 100%;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.dia-extra {
+  flex-basis: 100%;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+.dia-tormenta { color: var(--color-danger); font-weight: 700; }
+
 .dia-peligro {
   display: inline-flex;
   align-items: center;

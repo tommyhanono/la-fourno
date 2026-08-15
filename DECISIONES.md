@@ -105,3 +105,36 @@ comentarios en `puntos.ts`.
 Sin bitácora, sin checklist, sin cuentas — la misión lo cierra. Ideas
 que surgieron y NO se implementaron (van al README como futuras):
 rosa de viento por hora, alertas push, radar de lluvia, AIS.
+
+## 10. Día por día = jornada completa, no bloques (2026-08-14)
+
+Pedido de Tommy: ver cada día de la semana "en general", sin bloques
+de horas — él sale 9–10 am y vuelve 3–4 pm. La sección "Día por día"
+evalúa el día COMPLETO sobre esa jornada (9 am – 4 pm, editable en
+`calibracion.ts → jornada`) y puntúa el corredor contra CADA destino
+de navegación: el de mejor score es "el mejor destino según el clima
+de ese día". La marea se evalúa a la llegada (salida + 2 h). Las 3
+ventanas de arriba siguen siendo bloques de 2 h: son otra pregunta
+("¿cuál es el MEJOR momento?"), esta responde "¿cómo viene el día?".
+
+Tres decisiones que salieron de probarlo con datos reales de agosto:
+
+1. **Promedio ponderado al pico, no peor caso.** El peor caso puro
+   sobre 7 h daba 0/MALO en casi todos los días (en temporada
+   lluviosa siempre hay un chubasco a las 3 pm) y no se podía
+   comparar nada. Ahora viento y ola se resumen como
+   `promedio*(1-w) + pico*w` con `w = jornada.pesoPico` (0.5), y el
+   resumen muestra el pico aparte ("viento 8 kt (hasta 14 kt)").
+2. **La tormenta penaliza en proporción a las horas que ocupa.**
+   `EntradaBloque.tormentaFrac` escala el castigo y solo marca
+   PELIGRO si tapa ≥ `seguridad.tormentaPeligroFrac` (35 %) de la
+   jornada. En los bloques de 2 h no aplica: ahí cualquier tormenta
+   sigue siendo peligro sin negociar. La fila del día igual avisa la
+   hora ("tormenta prevista desde 1 pm").
+3. **`soloReferencia` en puntos.ts.** Ocean Reef islas está a minutos
+   de la dársena, así que siempre ganaba como "mejor destino" — cierto
+   pero inútil. Marcado como punto de consulta: se sigue viendo su
+   clima, no se propone como destino de jornada. Y si todos los
+   destinos quedan dentro de 3 puntos, la fila dice "parejo en todos
+   los puntos" en vez de vender un ganador que el pronóstico no
+   distingue.

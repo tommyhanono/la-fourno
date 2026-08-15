@@ -91,3 +91,34 @@ Fecha: 2026-08-09 · Auditoría completa "como si no confiaras en quien lo const
 npm test          # unit
 npm run test:e2e  # E2E (levanta build + preview solo)
 ```
+
+---
+
+## Ronda de "Día por día" (2026-08-14)
+
+Cambio: la sección Día por día pasó de bloques de horas a **jornada
+completa** (9 am – 4 pm) con **mejor destino del día**, a pedido de
+Tommy. Ver DECISIONES.md §10.
+
+**Dos corridas limpias seguidas** (23:24 y 23:25):
+- 47/47 unit (5 nuevas de jornada + 1 de `tormentaFrac`)
+- 11/11 E2E (WebKit iPhone 13)
+- Lighthouse desktop: **performance 100 · a11y 100 · best-practices 100**
+  (SEO 91, sin cambios), **CLS 0.002**
+
+### Hallazgos de la ronda (los 4 corregidos)
+1. **Peor caso de 7 h daba 0/MALO todos los días.** En agosto (temporada
+   lluviosa) siempre hay chubasco de tarde, así que ningún día se podía
+   comparar con otro. → promedio ponderado al pico (`jornada.pesoPico`),
+   con el pico visible aparte en el resumen.
+2. **La tormenta mataba el día entero.** → penal proporcional a las horas
+   (`tormentaFrac`), PELIGRO solo desde 35 % de la jornada. Los bloques de
+   2 h NO cambiaron: verificado por test dedicado.
+3. **"Ocean Reef islas" ganaba siempre como mejor destino** (está a minutos
+   de la dársena: el corredor es trivial). → marcado `soloReferencia` en
+   `puntos.ts`; se sigue consultando su clima, no se propone como destino.
+   Además, si todos los destinos entran en 3 puntos, la fila dice "parejo
+   en todos los puntos" en vez de inventar un ganador.
+4. **CLS subió a 0.117 y performance bajó a 90** porque la sección aparecía
+   al llegar los datos y empujaba el layout. → esqueleto de 7 filas que
+   reserva la altura; CLS 0.002 y performance 100.

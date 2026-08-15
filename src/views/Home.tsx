@@ -7,7 +7,7 @@ import { PUNTOS } from '../config/puntos'
 import type { EstadoDatos } from '../state/hooks'
 import type { Unidades } from '../lib/units'
 import { fmtViento, fmtOla } from '../lib/units'
-import { bloquesCorredor, mejoresVentanas, resumenSemanal, diasPlaya } from '../lib/ventanas'
+import { bloquesCorredor, mejoresVentanas, jornadasSemana, diasPlaya } from '../lib/ventanas'
 import { nombreDia, horaMuyCorta, parsePanama } from '../lib/time'
 import { Header, AvisoSeguridad } from '../components/Marco'
 import { BadgeScore, Desglose } from '../components/Desglose'
@@ -19,7 +19,7 @@ export function Home({ estado, unidades }: { estado: EstadoDatos; unidades: Unid
 
   const bloques = useMemo(() => (datos ? bloquesCorredor(datos) : []), [datos])
   const ventanas = useMemo(() => mejoresVentanas(bloques), [bloques])
-  const semana = useMemo(() => resumenSemanal(bloques), [bloques])
+  const semana = useMemo(() => (datos ? jornadasSemana(datos) : []), [datos])
 
   return (
     <div className="pantalla">
@@ -71,51 +71,73 @@ export function Home({ estado, unidades }: { estado: EstadoDatos; unidades: Unid
           )}
         </section>
 
-        {datos && semana.length > 0 && (
-          <section aria-labelledby="titulo-dias" className="seccion-dias">
+        {/* La sección se renderiza siempre: el esqueleto reserva su
+            altura y evita el salto de layout cuando llegan los datos. */}
+        <section aria-labelledby="titulo-dias" className="seccion-dias">
             <h2 id="titulo-dias">Día por día</h2>
             <p className="sub-seccion">
-              El mejor bloque de cada día del corredor, esté o no entre las 3
-              ventanas de arriba.
+              Cada día completo en tu jornada de siempre (sales 9–10 am,
+              vuelves 3–4 pm), con el mejor destino según el clima de ese día.
             </p>
             <div className="tarjeta">
               <ul className="semana">
                 {semana.map((d) => (
                   <li key={d.clave} className="semana-fila">
                     <span className="semana-dia">{nombreDia(d.dia)}</span>
-                    {d.mejorBloque ? (
-                      <>
-                        <span className="semana-datos">
-                          {horaMuyCorta(d.mejorBloque.inicio)} –{' '}
-                          {horaMuyCorta(d.mejorBloque.fin)}
-                          {' · '}
-                          {resumenVentana(
-                            d.mejorBloque.entrada.vientoKt,
-                            d.mejorBloque.entrada.olaM,
-                            d.mejorBloque.entrada.nubosidadPct,
-                            unidades,
-                          )}
-                        </span>
-                        {d.mejorBloque.score.peligro && (
-                          <span className="dia-peligro">
-                            <Icono nombre="alerta" size={16} /> no recomendado
-                          </span>
-                        )}
-                        <BadgeScore score={d.mejorBloque.score} />
-                        <Desglose
-                          score={d.mejorBloque.score}
-                          id={`dia-${d.clave}`}
-                        />
-                      </>
-                    ) : (
-                      <span className="semana-datos">sin bloque de luz</span>
+                    <span className="semana-datos">
+                      {resumenDia(d.entrada, d.picos, unidades)}
+                    </span>
+                    {d.score.peligro && (
+                      <span className="dia-peligro">
+                        <Icono nombre="alerta" size={16} /> no recomendado
+                      </span>
                     )}
+                    <BadgeScore score={d.score} />
+                    <span className="dia-destino">
+                      {d.parejo ? (
+                        <>
+                          Parejo en todos los puntos · sugerido:{' '}
+                          <a href={`#/punto/${d.mejorDestino.id}`}>
+                            {d.mejorDestino.nombre}
+                          </a>
+                        </>
+                      ) : (
+                        <>
+                          Mejor destino:{' '}
+                          <a href={`#/punto/${d.mejorDestino.id}`}>
+                            {d.mejorDestino.nombre}
+                          </a>
+                        </>
+                      )}
+                    </span>
+                    <span className="dia-extra">
+                      {d.tormentaDesde && (
+                        <span className="dia-tormenta">
+                          tormenta prevista desde {horaMuyCorta(d.tormentaDesde)} ·{' '}
+                        </span>
+                      )}
+                      {d.sol && (
+                        <>
+                          sol {horaMuyCorta(d.sol.sale)} – {horaMuyCorta(d.sol.sePone)}
+                        </>
+                      )}
+                    </span>
+                    <Desglose score={d.score} id={`dia-${d.clave}`} />
                   </li>
                 ))}
+                {semana.length === 0 &&
+                  Array.from({ length: 7 }, (_, i) => (
+                    <li key={`hueco-${i}`} className="semana-fila hueco" aria-hidden>
+                      <span className="semana-dia">—</span>
+                      <span className="semana-datos">—</span>
+                      <span className="dia-destino">—</span>
+                      <span className="dia-extra">—</span>
+                      <span className="hueco-desglose">—</span>
+                    </li>
+                  ))}
               </ul>
             </div>
           </section>
-        )}
 
         <section aria-labelledby="titulo-puntos" className="seccion-puntos">
           <h2 id="titulo-puntos">Mis puntos</h2>
@@ -153,6 +175,40 @@ function resumenVentana(
   if (olaM != null) partes.push(`ola ${fmtOla(olaM, u)}`)
   if (nubes != null)
     partes.push(nubes <= 25 ? 'despejado' : nubes <= 50 ? 'sol parcial' : 'nublado')
+  return partes.join(' · ') || 'sin resumen'
+}
+
+function resumenDia(
+  e: {
+    vientoKt: number | null
+    olaM: number | null
+    nubosidadPct: number | null
+    probLluviaPct: number | null
+  },
+  picos: { vientoKt: number | null; olaM: number | null },
+  u: Unidades,
+): string {
+  const partes: string[] = []
+  if (e.vientoKt != null) {
+    const pico =
+      picos.vientoKt != null && picos.vientoKt - e.vientoKt >= 2
+        ? ` (hasta ${fmtViento(picos.vientoKt, u)})`
+        : ''
+    partes.push(`viento ${fmtViento(e.vientoKt, u)}${pico}`)
+  }
+  if (e.olaM != null) {
+    const pico =
+      picos.olaM != null && picos.olaM - e.olaM >= 0.2
+        ? ` (hasta ${fmtOla(picos.olaM, u)})`
+        : ''
+    partes.push(`ola ${fmtOla(e.olaM, u)}${pico}`)
+  }
+  if (e.nubosidadPct != null)
+    partes.push(
+      e.nubosidadPct <= 25 ? 'despejado' : e.nubosidadPct <= 50 ? 'sol parcial' : 'nublado',
+    )
+  if (e.probLluviaPct != null && e.probLluviaPct > 30)
+    partes.push(`lluvia ${Math.round(e.probLluviaPct)} %`)
   return partes.join(' · ') || 'sin resumen'
 }
 

@@ -39,6 +39,23 @@ describe('scoreBloque — casos borde', () => {
     expect(r.contribuciones.some((c) => c.clave === 'tormenta')).toBe(true)
   })
 
+  it('tormentaFrac escala el castigo sin cambiar los bloques de 2 h', () => {
+    const conTormenta = { ...base, weatherCodes: [0, 95] }
+    const completo = scoreBloque(conTormenta)
+    const corta = scoreBloque({ ...conTormenta, tormentaFrac: 1 / 7 })
+    const larga = scoreBloque({ ...conTormenta, tormentaFrac: 5 / 7 })
+    // sin el campo, nada cambia: la tormenta pesa completa y es peligro
+    expect(completo.peligro).toBe(true)
+    const penalCompleto = completo.contribuciones.find((c) => c.clave === 'tormenta')!
+    expect(penalCompleto.puntos).toBe(-CALIBRACION.seguridad.tormentaPenal)
+    // 1 de 7 h: penaliza poco y NO marca peligro (< 35 %)
+    expect(corta.peligro).toBe(false)
+    expect(corta.total).toBeGreaterThan(completo.total)
+    // 5 de 7 h: sí es peligro y castiga fuerte
+    expect(larga.peligro).toBe(true)
+    expect(larga.total).toBeLessThan(corta.total)
+  })
+
   it('todos los datos faltantes: score 0 sin reventar, marcado parcial', () => {
     const r = scoreBloque({
       vientoKt: null,
