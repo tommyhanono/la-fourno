@@ -1,12 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import {
-  bloquesCorredor,
-  mejoresVentanas,
-  jornadasSemana,
-  diasPlaya,
-} from '../../src/lib/ventanas'
+import { jornadasSemana, diasPlaya } from '../../src/lib/ventanas'
 import { datosSinteticos, DIA_BASE } from '../fixtures/genera'
-import { horaPanama, claveDia } from '../../src/lib/time'
+import { horaPanama } from '../../src/lib/time'
+import { PUNTOS } from '../../src/config/puntos'
+import { CALIBRACION } from '../../src/config/calibracion'
 
 beforeEach(() => {
   // "ahora" = lunes 5:00 am Panamá del set sintético
@@ -15,83 +12,6 @@ beforeEach(() => {
 })
 
 afterEach(() => vi.useRealTimers())
-
-describe('bloques del corredor', () => {
-  it('solo genera bloques con luz de día', () => {
-    const bloques = bloquesCorredor(datosSinteticos())
-    expect(bloques.length).toBeGreaterThan(10)
-    for (const b of bloques) {
-      const h = horaPanama(b.inicio)
-      expect(h).toBeGreaterThanOrEqual(6)
-      expect(h).toBeLessThanOrEqual(16)
-    }
-  })
-
-  it('no genera bloques ya pasados', () => {
-    vi.setSystemTime(new Date(`${DIA_BASE}T15:00:00-05:00`))
-    const bloques = bloquesCorredor(datosSinteticos())
-    for (const b of bloques) {
-      expect(b.fin.getTime()).toBeGreaterThan(Date.now())
-    }
-  })
-
-  it('los bloques de tormenta salen con peligro', () => {
-    const bloques = bloquesCorredor(datosSinteticos())
-    const miercolesMediodia = bloques.find(
-      (b) => claveDia(b.inicio) === '2026-08-12' && horaPanama(b.inicio) === 12,
-    )
-    expect(miercolesMediodia).toBeDefined()
-    expect(miercolesMediodia!.score.peligro).toBe(true)
-  })
-})
-
-describe('mejores ventanas', () => {
-  it('devuelve 3 ventanas ordenadas por fecha, sin peligro', () => {
-    const vs = mejoresVentanas(bloquesCorredor(datosSinteticos()))
-    expect(vs).toHaveLength(3)
-    for (let i = 1; i < vs.length; i++) {
-      expect(vs[i].inicio.getTime()).toBeGreaterThan(vs[i - 1].inicio.getTime())
-    }
-    for (const v of vs) expect(v.score.peligro).toBe(false)
-  })
-
-  it('prefiere las mañanas calmas (el viento manda)', () => {
-    const vs = mejoresVentanas(bloquesCorredor(datosSinteticos()))
-    for (const v of vs) {
-      expect(horaPanama(v.inicio)).toBeLessThanOrEqual(10)
-    }
-  })
-
-  it('evita el viernes ventoso', () => {
-    const vs = mejoresVentanas(bloquesCorredor(datosSinteticos()))
-    for (const v of vs) {
-      expect(claveDia(v.inicio)).not.toBe('2026-08-14')
-    }
-  })
-
-  it('máximo 2 ventanas por día y separadas ≥ 4 h', () => {
-    const vs = mejoresVentanas(bloquesCorredor(datosSinteticos()), 3)
-    const porDia = new Map<string, number>()
-    for (const v of vs) {
-      porDia.set(claveDia(v.inicio), (porDia.get(claveDia(v.inicio)) ?? 0) + 1)
-    }
-    for (const n of porDia.values()) expect(n).toBeLessThanOrEqual(2)
-    const orden = [...vs].sort((a, b) => a.inicio.getTime() - b.inicio.getTime())
-    for (let i = 1; i < orden.length; i++) {
-      expect(
-        orden[i].inicio.getTime() - orden[i - 1].inicio.getTime(),
-      ).toBeGreaterThanOrEqual(4 * 3600_000)
-    }
-  })
-
-  it('sin datos de marea sigue dando ventanas (score parcial)', () => {
-    const datos = datosSinteticos()
-    datos.marine = datos.marine.map(() => null)
-    const vs = mejoresVentanas(bloquesCorredor(datos))
-    expect(vs.length).toBe(3)
-    expect(vs[0].score.parcial).toBe(true)
-  })
-})
 
 describe('jornadas día por día', () => {
   it('cubre TODOS los días del pronóstico, incluso los feos', () => {
@@ -174,6 +94,43 @@ describe('jornadas día por día', () => {
     expect(horaPanama(lunes.sol!.sale)).toBe(6)
     // el fixture da el mismo clima a todos los puntos → empate declarado
     expect(lunes.parejo).toBe(true)
+  })
+
+  it('el rango del día existe de verdad: sale de la misma serie horaria', () => {
+    // El mínimo y el máximo tienen que venir del corredor hora a hora
+    // (el peor de salida y destino cada hora), no el mínimo de un punto
+    // con el máximo de otro: eso daba rangos que no pasaban nunca.
+    const datos = datosSinteticos()
+    const lunes = jornadasSemana(datos)[0]
+    const destino = lunes.mejorDestino.id
+    const iSalida = PUNTOS.findIndex((p) => p.esSalida)
+    const iDestino = PUNTOS.findIndex((p) => p.id === destino)
+    const porHora: number[] = []
+    for (let h = CALIBRACION.jornada.desdeHora; h < CALIBRACION.jornada.hastaHora; h++) {
+      const clave = `${lunes.clave}T${String(h).padStart(2, '0')}:00`
+      const vs = [iSalida, iDestino]
+        .map((i) => {
+          const f = datos.forecast[i]
+          const k = f.hourly.time.indexOf(clave)
+          return k >= 0 ? f.hourly.wind_speed_10m[k] : null
+        })
+        .filter((v): v is number => v != null)
+      if (vs.length) porHora.push(Math.max(...vs))
+    }
+    expect(porHora.length).toBe(
+      CALIBRACION.jornada.hastaHora - CALIBRACION.jornada.desdeHora,
+    )
+    expect(lunes.rango.vientoMin).toBeCloseTo(Math.min(...porHora), 6)
+    expect(lunes.rango.vientoMax).toBeCloseTo(Math.max(...porHora), 6)
+  })
+
+  it('la forma del día dice temprano cuando el viento sube por la tarde', () => {
+    // El fixture sube el viento a lo largo del día: la mañana tiene que
+    // salir mejor que la tarde, sin inventar bloques con puntaje.
+    const dias = jornadasSemana(datosSinteticos())
+    const lunes = dias[0]
+    expect(['temprano', 'tarde', 'parejo']).toContain(lunes.forma)
+    expect(lunes.forma).toBe('temprano')
   })
 
   it('el viernes ventoso puntúa peor que un día normal', () => {

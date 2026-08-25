@@ -20,13 +20,26 @@ export function Desglose({ score, id }: { score: ResultadoScore; id: string }) {
       <summary>¿Por qué {score.total}?</summary>
       <ul id={id} className="desglose-lista">
         {score.contribuciones.map((c, i) => (
-          <li key={i} className={c.puntos < 0 ? 'resta' : 'suma'}>
+          <li
+            key={i}
+            className={
+              c.tipo === 'bandera' ? 'bandera' : c.puntos < 0 ? 'resta' : 'suma'
+            }
+          >
             <span>{c.etiqueta}</span>
+            {/* Una bandera no suma ni resta: marca peligro. Mostrarla
+                como "+0" la haría parecer un dato irrelevante. */}
             <span className="pts">
-              {c.puntos >= 0 ? '+' : '−'}
-              {Math.abs(c.puntos) % 1 === 0
-                ? Math.abs(c.puntos)
-                : Math.abs(c.puntos).toFixed(1)}
+              {c.tipo === 'bandera' ? (
+                'no salir'
+              ) : (
+                <>
+                  {c.puntos >= 0 ? '+' : '−'}
+                  {Math.abs(c.puntos) % 1 === 0
+                    ? Math.abs(c.puntos)
+                    : Math.abs(c.puntos).toFixed(1)}
+                </>
+              )}
             </span>
           </li>
         ))}

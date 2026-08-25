@@ -32,29 +32,55 @@ async function cortarRed(page: Page) {
 }
 
 test.describe('La Fourno', () => {
-  test('abre y muestra las 3 mejores ventanas de la semana', async ({ page }) => {
+  test('abre con UN veredicto: el mejor día, su destino y sus condiciones', async ({
+    page,
+  }) => {
     await mockApis(page)
     await page.goto('/')
     await expect(page.getByText('¿Cuándo salgo esta semana?')).toBeVisible()
-    await expect(page.locator('.ventana')).toHaveCount(3, { timeout: 15_000 })
-    // cada ventana dice día, horas y score
-    const primera = page.locator('.ventana').first()
-    await expect(primera.locator('.ventana-horas')).toContainText('–')
-    await expect(primera.locator('.badge-score strong')).toHaveText(/^\d+$/)
+    const v = page.locator('.veredicto')
+    await expect(v).toHaveCount(1, { timeout: 15_000 })
+    await expect(v.locator('.veredicto-dia')).not.toBeEmpty()
+    await expect(v.locator('.badge-score strong')).toHaveText(/^\d+$/)
+    await expect(v.locator('.veredicto-destino a')).toHaveAttribute(
+      'href',
+      /#\/punto\//,
+    )
+    // el veredicto habla de la jornada entera, nunca de un bloque de horas
+    await expect(v.locator('.veredicto-cond')).toContainText(/Viento/)
+    expect(await v.locator('.veredicto-cond').textContent()).not.toMatch(/[ap]m/)
+  })
+
+  test('la pantalla no contesta dos veces: el veredicto y el sello son el mismo día', async ({
+    page,
+  }) => {
+    await mockApis(page)
+    await page.goto('/')
+    const v = page.locator('.veredicto')
+    await expect(v).toBeVisible({ timeout: 15_000 })
+    const diaVeredicto = (await v.locator('.veredicto-dia').textContent())?.trim()
+    const marcado = page.locator('.dia.mejor-dia')
+    await expect(marcado).toHaveCount(1)
+    const diaMarcado = (await marcado.locator('.dia-nombre').textContent())?.trim()
+    expect(diaMarcado).toBe(diaVeredicto)
+    // y el mismo número, no dos puntajes distintos para el mismo día
+    const scoreVeredicto = await v.locator('.badge-score strong').textContent()
+    const scoreMarcado = await marcado.locator('.badge-score strong').textContent()
+    expect(scoreMarcado).toBe(scoreVeredicto)
   })
 
   test('el desglose del score se abre y muestra números con signo', async ({ page }) => {
     await mockApis(page)
     await page.goto('/')
-    await expect(page.locator('.ventana').first()).toBeVisible({ timeout: 15_000 })
-    await page.locator('.ventana').first().locator('summary').click()
-    const items = page.locator('.ventana').first().locator('.desglose-lista li')
+    await expect(page.locator('.veredicto')).toBeVisible({ timeout: 15_000 })
+    await page.locator('.veredicto').locator('summary').click()
+    const items = page.locator('.veredicto').locator('.desglose-lista li')
     await expect(items.first()).toBeVisible()
     expect(await items.count()).toBeGreaterThanOrEqual(3)
     await expect(items.first().locator('.pts')).toHaveText(/^[+−]\d/)
     // el viento aparece con su medición
     await expect(
-      page.locator('.ventana').first().locator('.desglose-lista'),
+      page.locator('.veredicto').locator('.desglose-lista'),
     ).toContainText(/viento \d+ kt/)
   })
 
@@ -74,7 +100,7 @@ test.describe('La Fourno', () => {
       // cada día trae su score y su destino (o el empate declarado)…
       await expect(fila.locator('.badge-score strong')).toHaveText(/^\d+$/)
       await expect(fila.locator('.dia-destino')).toContainText(
-        /Mejor destino|Parejo en todos los puntos · sugerido/,
+        /Mejor destino:|Parejo en todos los puntos, sugerido:|Números del corredor a:/,
       )
       // …las horas de sol CON minutos (truncarlas mentía sobre el ocaso)
       await expect(fila.locator('.dia-extra')).toContainText(
@@ -85,8 +111,16 @@ test.describe('La Fourno', () => {
       // …y NO bloques de horas: el día se muestra completo
       expect(await fila.locator('.dia-datos').textContent()).not.toMatch(/[ap]m/)
     }
-    // exactamente un día marcado como el mejor de la semana
-    expect(await seccion.locator('.dia-sello').count()).toBeLessThanOrEqual(1)
+    // exactamente un día marcado como el mejor de la semana. El fixture
+    // siempre deja algún día salible, así que "cero sellos" es un fallo,
+    // no un caso válido.
+    expect(await seccion.locator('.dia-sello').count()).toBe(1)
+    // un día con bandera de seguridad NO sugiere hora de salida:
+    // "está mejor temprano" debajo de "no recomendado" se lee como permiso
+    const peligrosos = seccion.locator('.dia:has(.dia-peligro)')
+    for (let i = 0; i < (await peligrosos.count()); i++) {
+      await expect(peligrosos.nth(i).locator('.dia-forma')).toHaveCount(0)
+    }
     // el destino es un link que abre su punto
     const destino = filas.first().locator('.dia-destino a')
     await expect(destino).toHaveAttribute('href', /#\/punto\//)
@@ -245,8 +279,8 @@ test.describe('La Fourno', () => {
     }, JSON.stringify(datos))
     await cortarRed(page)
     await page.goto('/')
-    // muestra las ventanas del caché
-    await expect(page.locator('.ventana')).toHaveCount(3, { timeout: 20_000 })
+    // muestra el veredicto del caché
+    await expect(page.locator('.veredicto')).toHaveCount(1, { timeout: 20_000 })
     // y dice que es dato viejo sin conexión
     await expect(page.getByText('sin conexión: mostrando lo último que llegó')).toBeVisible()
     await expect(page.getByText(/hace 2 h/)).toBeVisible()
@@ -260,8 +294,8 @@ test.describe('La Fourno', () => {
     await page.route('**/marine-api.open-meteo.com/**', (route) => route.abort())
     await page.goto('/')
     await expect(page.getByText(/falló mar y marea/)).toBeVisible({ timeout: 20_000 })
-    // las ventanas igual salen (score parcial sin ola/marea)
-    await expect(page.locator('.ventana')).toHaveCount(3)
+    // el veredicto igual sale (score parcial sin ola/marea)
+    await expect(page.locator('.veredicto')).toHaveCount(1)
   })
 
   test('a 375 px no hay scroll horizontal en ninguna vista', async ({ browser }) => {

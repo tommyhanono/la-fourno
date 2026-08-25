@@ -13,16 +13,17 @@ Condiciones + recomendador. Nada más, a propósito.
 
 ## Qué hace
 
-- **Pantalla principal**: las 3 mejores ventanas de la semana (bloques
-  de 2 h, solo horas de luz), con score 0–100 y desglose abrible que
-  muestra los números ("viento 8 kt: +40 · despejado: +30 · …").
+- **El veredicto**: arriba de todo, tu mejor día de la semana, con su
+  destino y sus condiciones, y un desglose abrible que muestra los
+  números ("viento 8 kt: +40 · despejado: +30 · …"). Es el mismo día
+  que sale sellado en la lista: la app **nunca da dos respuestas**.
 - **Día por día**: la semana completa, una tarjeta por día, evaluada
-  sobre tu jornada de siempre (9 am – 4 pm) — sin bloques de horas.
+  sobre tu jornada de siempre (9 am – 4 pm) — **sin bloques de horas**.
   Cada día trae el **rango medido** de viento y ola ("2–9 kt"), cielo,
   lluvia, horas de sol con minutos, a qué hora entra la tormenta si la
-  hay, su **mejor momento** de 2 h, y **el mejor destino según el clima
-  de ese día**. Si todos los puntos quedan iguales, lo dice en vez de
-  inventar un ganador; y el mejor día de la semana va sellado.
+  hay, **el mejor destino según el clima de ese día**, y si conviene
+  temprano o por la tarde (en palabras, no en puntaje). Si todos los
+  puntos quedan iguales, lo dice en vez de inventar un ganador.
 - **9 puntos precargados**: Marina Ocean Reef, Contadora, Chapera,
   Islas Ocean Reef, Pearl Island, Mogo Mogo, Caracoles + las playas
   Santa Clara (Las Sirenas) y Coronado con su "score de día de playa".

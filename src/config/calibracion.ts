@@ -7,23 +7,39 @@
 //
 // Todo lo que el score usa sale de este archivo. Edita y listo.
 // Unidades internas: viento en nudos, ola en metros, lluvia en mm.
+//
+// CÓMO SE LEEN LAS CURVAS
+// Cada curva es una lista de ANCLAJES: "a este valor exacto, esta
+// fracción del peso". Entre dos anclajes el score interpola en línea
+// recta; antes del primero y después del último se queda en el
+// extremo. O sea: `{ kt: 12, frac: 0.65 }` significa "a 12 nudos se
+// lleva el 65 % del peso del viento", y a 10 kt le toca algo entre
+// el anclaje de 8 y el de 12.
+//
+// Antes esto eran cajones ("de 8 a 12 kt → 0.65"), y con cajones
+// media semana caía en el mismo cajón y daba el mismo número: seis
+// días seguidos "40" y el score dejaba de servir para comparar. Se
+// pasó a curva a propósito. Para endurecer o aflojar un tramo, mueve
+// el frac de su anclaje o agrega uno intermedio.
 // ============================================================
 
-export interface TramoViento {
-  hastaKt: number
-  frac: number // fracción del peso de viento que se lleva este tramo
+/** Un punto de la curva: a `valor` exacto le toca `frac` del peso. */
+export interface Anclaje {
+  frac: number
 }
+export type AnclajeKt = Anclaje & { kt: number }
+export type AnclajePct = Anclaje & { pct: number }
+export type AnclajeM = Anclaje & { m: number }
 
 export const CALIBRACION = {
-  /** Duración de cada bloque del recomendador, en horas. */
+  /** Duración de cada bloque horario interno, en horas. */
   bloqueHoras: 2,
 
   /**
    * Jornada típica de Tommy: sale 9–10 am y vuelve 3–4 pm.
-   * La vista "Día por día" evalúa el día COMPLETO dentro de esta
-   * franja (peor caso de viento/ola/tormenta en toda la jornada) y
-   * elige el mejor destino del día. llegadaHoras = cuánto tarda el
-   * cruce para evaluar la marea al llegar al destino.
+   * Es la franja que la app evalúa para dar el día completo y para
+   * elegir el mejor destino. llegadaHoras = cuánto tarda el cruce,
+   * para mirar la marea al LLEGAR y no al salir.
    */
   jornada: {
     desdeHora: 9, // 9 am
@@ -54,15 +70,16 @@ export const CALIBRACION = {
     // Viento sostenido (kt) → fracción del peso.
     // Un CCX 40 plana cómodo hasta ~12 kt de viento en el golfo;
     // 15+ ya es mar molesto de banda; 20+ no vale la pena.
-    tramos: [
-      { hastaKt: 5, frac: 1.0 }, //  calma — día perfecto
-      { hastaKt: 8, frac: 0.9 }, //  brisa suave
-      { hastaKt: 12, frac: 0.65 }, // se siente pero se anda bien
-      { hastaKt: 15, frac: 0.4 }, //  incómodo
-      { hastaKt: 18, frac: 0.18 }, // golpeado
-      { hastaKt: 22, frac: 0.05 }, // mala idea
-      { hastaKt: Infinity, frac: 0 },
-    ] as TramoViento[],
+    curva: [
+      { kt: 0, frac: 1.0 }, //   calma chicha
+      { kt: 5, frac: 1.0 }, //   calma — día perfecto
+      { kt: 8, frac: 0.9 }, //   brisa suave
+      { kt: 12, frac: 0.65 }, // se siente pero se anda bien
+      { kt: 15, frac: 0.4 }, //  incómodo
+      { kt: 18, frac: 0.18 }, // golpeado
+      { kt: 22, frac: 0.05 }, // mala idea
+      { kt: 25, frac: 0 }, //    de aquí en adelante, cero
+    ] as AnclajeKt[],
     // Si la ráfaga supera al sostenido por más de este delta, resta puntos:
     // viento parejo se maneja, viento a golpes cansa y sorprende.
     rachaDeltaKt: 7,
@@ -71,12 +88,13 @@ export const CALIBRACION = {
 
   sol: {
     // Nubosidad media (%) → fracción del peso de sol.
-    tramos: [
-      { hastaPct: 25, frac: 1.0 }, // despejado
-      { hastaPct: 50, frac: 0.75 }, // parcial
-      { hastaPct: 75, frac: 0.45 }, // nublado
-      { hastaPct: 100, frac: 0.2 }, // cerrado
-    ],
+    curva: [
+      { pct: 0, frac: 1.0 },
+      { pct: 25, frac: 1.0 }, //  despejado
+      { pct: 50, frac: 0.75 }, // parcial
+      { pct: 75, frac: 0.45 }, // nublado
+      { pct: 100, frac: 0.2 }, // cerrado
+    ] as AnclajePct[],
     // Probabilidad de lluvia: resta proporcional hasta este máximo.
     probLluviaPenalMax: 12, // a 100 % de prob se restan 12 pts
   },
@@ -84,13 +102,14 @@ export const CALIBRACION = {
   ola: {
     // Altura de ola (m) → fracción del peso. Con 40 pies, 0.5 m ni se
     // siente; 1 m se navega; 1.5 m ya se elige otra ruta.
-    tramos: [
-      { hastaM: 0.5, frac: 1.0 },
-      { hastaM: 0.9, frac: 0.7 },
-      { hastaM: 1.3, frac: 0.35 },
-      { hastaM: 1.8, frac: 0.1 },
-      { hastaM: Infinity, frac: 0 },
-    ],
+    curva: [
+      { m: 0, frac: 1.0 },
+      { m: 0.5, frac: 1.0 },
+      { m: 0.9, frac: 0.7 },
+      { m: 1.3, frac: 0.35 },
+      { m: 1.8, frac: 0.1 },
+      { m: 2.5, frac: 0 },
+    ] as AnclajeM[],
     // Período largo = mar viejo, cómodo. Bono si período ≥ este valor.
     periodoLargoS: 12,
     periodoLargoBono: 3,
@@ -107,11 +126,11 @@ export const CALIBRACION = {
   },
 
   seguridad: {
-    // Tormenta eléctrica: códigos WMO 95/96/99 en el bloque.
+    // Tormenta eléctrica: códigos WMO 95/96/99 en la franja.
     // Open-Meteo no publica rayos: weather_code + CAPE son el proxy
     // (documentado en DECISIONES.md).
     tormentaCodes: [95, 96, 99],
-    tormentaPenal: 60, // mata el bloque aunque el resto esté perfecto
+    tormentaPenal: 60, // mata la franja aunque el resto esté perfecto
     /**
      * En franjas largas (la jornada del día) la tormenta penaliza en
      * proporción a las horas que ocupa, y solo marca PELIGRO si tapa
@@ -119,6 +138,14 @@ export const CALIBRACION = {
      * aplica: ahí cualquier tormenta es peligro, sin negociar.
      */
     tormentaPeligroFrac: 0.35,
+    /**
+     * Viento sostenido a partir del cual el día se marca PELIGRO, sin
+     * depender de la curva de puntaje. La curva reparte puntos; esto
+     * es una raya dura, para que "no salgas" no sea el resultado de
+     * una interpolación. 22 kt es donde tu propia escala dice
+     * "mala idea".
+     */
+    vientoPeligrosoKt: 22,
     capeAltoJkg: 2500, // atmósfera muy cargada sin tormenta declarada
     capeAltoPenal: 20,
     lluviaFuerteMmH: 4,
@@ -135,18 +162,20 @@ export const CALIBRACION = {
   playa: {
     pesos: { sol: 50, viento: 30, lluvia: 20 },
     // En la playa el viento molesta menos que en el bote:
-    vientoTramos: [
-      { hastaKt: 8, frac: 1.0 },
-      { hastaKt: 13, frac: 0.75 },
-      { hastaKt: 18, frac: 0.4 },
-      { hastaKt: Infinity, frac: 0.1 },
-    ],
-    lluviaTramos: [
-      { hastaPct: 15, frac: 1.0 },
-      { hastaPct: 40, frac: 0.6 },
-      { hastaPct: 70, frac: 0.25 },
-      { hastaPct: 100, frac: 0 },
-    ],
+    vientoCurva: [
+      { kt: 0, frac: 1.0 },
+      { kt: 8, frac: 1.0 },
+      { kt: 13, frac: 0.75 },
+      { kt: 18, frac: 0.4 },
+      { kt: 30, frac: 0.1 }, // de aquí en adelante se queda en 0.1
+    ] as AnclajeKt[],
+    lluviaCurva: [
+      { pct: 0, frac: 1.0 },
+      { pct: 15, frac: 1.0 },
+      { pct: 40, frac: 0.6 },
+      { pct: 70, frac: 0.25 },
+      { pct: 100, frac: 0 },
+    ] as AnclajePct[],
   },
 
   /** Etiquetas de calidad del score total. */

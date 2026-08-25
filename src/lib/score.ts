@@ -43,8 +43,11 @@ export interface Contribucion {
   etiqueta: string
   /** puntos con signo */
   puntos: number
-  /** 'base' cuenta para el máximo teórico; 'penal' es seguridad */
-  tipo: 'base' | 'penal' | 'bono'
+  /**
+   * 'base' cuenta para el máximo teórico; 'penal' es seguridad;
+   * 'bandera' no suma puntos, solo explica por qué el día es peligroso.
+   */
+  tipo: 'base' | 'penal' | 'bono' | 'bandera'
 }
 
 export interface ResultadoScore {
@@ -57,31 +60,32 @@ export interface ResultadoScore {
 }
 
 /**
- * Fracción del peso según los tramos de la calibración, INTERPOLANDO
- * entre ellos. Con escalones puros, media semana caía en el mismo
- * cajón y daba scores idénticos (seis días seguidos "40") — el número
- * dejaba de distinguir un día de otro. Los tramos siguen siendo la
- * calibración de Tommy: son los puntos de anclaje de la curva.
+ * Fracción del peso leyendo la curva de la calibración: los anclajes
+ * son valores exactos y entre dos anclajes se interpola en línea
+ * recta. Fuera de la curva se queda en el extremo (no se extrapola).
+ *
+ * Ojo al leerlo: `{ kt: 12, frac: 0.65 }` es "a 12 kt exactos, 0.65",
+ * NO "de 8 a 12 kt, 0.65". Ver el encabezado de calibracion.ts.
  */
-function trFrac<K extends string>(
-  tramos: readonly ({ frac: number } & { [P in K]: number })[],
+function curvaFrac<K extends string>(
+  curva: readonly ({ frac: number } & { [P in K]: number })[],
   campo: K,
   valor: number,
 ): number {
-  let desde = 0
-  let fracAnterior = tramos.length ? tramos[0].frac : 0
-  for (const t of tramos) {
-    const hasta = t[campo]
-    if (valor <= hasta) {
-      // primer tramo o tramo abierto (Infinity): sin interpolar
-      if (!Number.isFinite(hasta) || hasta <= desde) return t.frac
-      const p = (valor - desde) / (hasta - desde)
-      return fracAnterior + (t.frac - fracAnterior) * Math.min(1, Math.max(0, p))
+  if (curva.length === 0) return 0
+  if (valor <= curva[0][campo]) return curva[0].frac
+  for (let i = 1; i < curva.length; i++) {
+    const x1 = curva[i][campo]
+    if (valor === x1) return curva[i].frac // en el anclaje no se negocia
+    if (valor < x1) {
+      const x0 = curva[i - 1][campo]
+      const y0 = curva[i - 1].frac
+      const y1 = curva[i].frac
+      if (x1 <= x0) return y1 // anclajes repetidos: manda el de la derecha
+      return y0 + (y1 - y0) * ((valor - x0) / (x1 - x0))
     }
-    desde = hasta
-    fracAnterior = t.frac
   }
-  return 0
+  return curva[curva.length - 1].frac
 }
 
 const r1 = (x: number) => Math.round(x * 10) / 10
@@ -94,7 +98,7 @@ export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): R
 
   // --- Viento (lo que manda) ---
   if (e.vientoKt != null) {
-    const frac = trFrac(cal.viento.tramos, 'hastaKt', e.vientoKt)
+    const frac = curvaFrac(cal.viento.curva, 'kt', e.vientoKt)
     c.push({
       clave: 'viento',
       etiqueta: `viento ${Math.round(e.vientoKt)} kt`,
@@ -118,7 +122,7 @@ export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): R
 
   // --- Sol ---
   if (e.nubosidadPct != null) {
-    const frac = trFrac(cal.sol.tramos, 'hastaPct', e.nubosidadPct)
+    const frac = curvaFrac(cal.sol.curva, 'pct', e.nubosidadPct)
     const etiqueta =
       e.nubosidadPct <= 25
         ? 'despejado'
@@ -142,7 +146,7 @@ export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): R
 
   // --- Ola ---
   if (e.olaM != null) {
-    const frac = trFrac(cal.ola.tramos, 'hastaM', e.olaM)
+    const frac = curvaFrac(cal.ola.curva, 'm', e.olaM)
     const ft = e.olaM * 3.28084
     c.push({
       clave: 'ola',
@@ -223,7 +227,7 @@ export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): R
       puntos: -r1(s.tormentaPenal * frac),
       tipo: 'penal',
     })
-    peligro = e.tormentaFrac == null || frac >= s.tormentaPeligroFrac
+    peligro = peligro || e.tormentaFrac == null || frac >= s.tormentaPeligroFrac
   } else if (e.capeJkg != null && e.capeJkg > s.capeAltoJkg) {
     c.push({
       clave: 'cape',
@@ -239,6 +243,16 @@ export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): R
       puntos: -s.lluviaFuertePenal,
       tipo: 'penal',
     })
+  }
+  // Viento de peligro: raya dura, no depende de la curva de puntaje.
+  if (e.vientoKt != null && e.vientoKt >= s.vientoPeligrosoKt) {
+    c.push({
+      clave: 'viento-peligroso',
+      etiqueta: `viento de ${Math.round(e.vientoKt)} kt sostenidos`,
+      puntos: 0,
+      tipo: 'bandera',
+    })
+    peligro = true
   }
   if (e.olaM != null) {
     if (e.olaM >= s.olaPeligrosaM) {
@@ -285,7 +299,7 @@ export function scorePlaya(e: EntradaPlaya, cal: Calibracion = CALIBRACION): Res
   const p = cal.playa
 
   if (e.nubosidadPct != null) {
-    const frac = trFrac(cal.sol.tramos, 'hastaPct', e.nubosidadPct)
+    const frac = curvaFrac(cal.sol.curva, 'pct', e.nubosidadPct)
     c.push({
       clave: 'sol',
       etiqueta: e.nubosidadPct <= 25 ? 'despejado' : `${Math.round(e.nubosidadPct)} % nubes`,
@@ -295,7 +309,7 @@ export function scorePlaya(e: EntradaPlaya, cal: Calibracion = CALIBRACION): Res
   } else parcial = true
 
   if (e.vientoKt != null) {
-    const frac = trFrac(p.vientoTramos, 'hastaKt', e.vientoKt)
+    const frac = curvaFrac(p.vientoCurva, 'kt', e.vientoKt)
     c.push({
       clave: 'viento',
       etiqueta: `viento ${Math.round(e.vientoKt)} kt`,
@@ -305,7 +319,7 @@ export function scorePlaya(e: EntradaPlaya, cal: Calibracion = CALIBRACION): Res
   } else parcial = true
 
   if (e.probLluviaPct != null) {
-    const frac = trFrac(p.lluviaTramos, 'hastaPct', e.probLluviaPct)
+    const frac = curvaFrac(p.lluviaCurva, 'pct', e.probLluviaPct)
     c.push({
       clave: 'lluvia',
       etiqueta:

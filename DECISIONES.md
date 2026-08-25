@@ -85,13 +85,15 @@ rápido en el corredor Ocean Reef→Contadora (~35 mn):
   da un bono chico.
 Todo editable en `src/config/calibracion.ts`.
 
-## 7. Ventanas: bloques de 2 h, solo luz de día
+## 7. La unidad de respuesta es el DÍA, no la hora
 
-Bloques pares de 6 am a 6 pm (con margen de 45 min sobre
-amanecer/atardecer), máximo 2 ventanas por día y separadas ≥ 4 h para
-que las "3 mejores" no sean tres bloques pegados de la misma mañana.
-El score del corredor toma el **peor caso** entre salida y destino
-(el corredor se navega entero) y la marea se evalúa a la llegada.
+~~Bloques de 2 h, 3 mejores ventanas~~ — retirado en la ronda 12 (§12).
+La app responde por días completos sobre la jornada de
+`calibracion.jornada` (9 am – 4 pm). El score del corredor toma el
+**peor caso hora a hora** entre salida y destino (el corredor se navega
+entero) y la marea se evalúa a la llegada. Lo más fino que sale al UI
+es la *forma* del día en palabras ("está mejor temprano"), nunca un
+segundo puntaje por franja.
 
 ## 8. Coordenadas
 
@@ -165,14 +167,15 @@ estilo como debe ser"). Lo que se corrigió y por qué:
    declara ahora su franja.
 6. **"Ocean Reef" se confundía con la marina de salida** → "Islas Ocean
    Reef".
-7. **El score de playa saturaba**: seis días seguidos daban exactamente
-   40 porque los tramos de la calibración son escalones. Ahora `trFrac`
-   **interpola** entre ellos; los tramos siguen siendo la calibración
-   (son los puntos de anclaje) y los valores exactos no se movieron.
+7. **El score saturaba**: seis días seguidos daban exactamente 40
+   porque los tramos de la calibración eran escalones. Se pasó a
+   interpolar entre ellos. ⚠️ **Corregido en la ronda 12**: la frase
+   original decía que "los valores exactos no se movieron", y era
+   falsa — solo se cumplía justo en los umbrales. Ver §12.
 8. **La pantalla parecía contradecirse**: arriba "mañana 8–10 am, 65" y
-   abajo "mañana, 11". Son dos preguntas distintas (el mejor MOMENTO vs.
-   el día entero); ahora cada día muestra también su mejor momento, que
-   es lo que vuelve legible la diferencia.
+   abajo "mañana, 11". El intento de esta ronda fue mostrar el mejor
+   momento dentro de cada día. ⚠️ **Revertido en la ronda 12**: no
+   resolvía la contradicción, la duplicaba. Ver §12.
 
 **Estilo y layout** (medidos con `scripts/audita-layout.mjs`)
 
@@ -192,3 +195,105 @@ estilo como debe ser"). Lo que se corrigió y por qué:
 13. **Jerarquía**: ocho tarjetas idénticas obligaban a comparar ocho
     números a mano. El mejor día lleva sello, en bloque sólido — el
     acento como texto chico no llega a AA (lo cazó Lighthouse).
+
+## 12. Revamp: una sola respuesta por pantalla (2026-08-25)
+
+Pedido de Tommy: *"revisa tus sources y haz un overview de todo para que
+haga sentido… actualmente lo siento enredado, dale un buen revamp"*.
+
+### Qué estaba enredado
+
+La pantalla principal contestaba **dos veces la misma pregunta con
+números distintos**: arriba las "3 mejores ventanas" (bloques de 2 h) y
+abajo, dentro de cada día, otra vez "mejor momento del día: 8–10 am
+(68/100)". Peor: un día con bandera **"No recomendado para salir"**
+mostraba igual un "mejor momento" con buen puntaje debajo — en una app
+de mar eso se lee como permiso.
+
+Además contradecía un pedido explícito suyo de la ronda anterior: *"no
+me des horas específicas, quiero info de todo el día"*.
+
+### Qué se hizo
+
+- **Fuera los bloques de horas de la pantalla principal.** Se eliminaron
+  `bloquesCorredor` y `mejoresVentanas`. El detalle por hora sigue
+  existiendo, pero donde corresponde: "Próximas horas" en la vista de
+  cada punto.
+- **Un veredicto arriba**: el mejor día salible de la semana, con su
+  destino y sus condiciones. Es el **mismo objeto** que la tarjeta
+  sellada abajo, así que es imposible que muestren números distintos
+  (hay un E2E que lo verifica).
+- **La forma del día en palabras, no en puntaje**: "está mejor
+  temprano", "está mejor por la tarde", "mañana y tarde, igual de
+  buenas". Se calcula con la misma vara (mitad contra mitad de la
+  jornada) pero no saca un segundo número a la pantalla, y **no aparece
+  en días con bandera de peligro**.
+- **Una sola franja horaria en toda la app.** "La semana" de cada punto
+  usaba 6 am – 6 pm mientras el inicio usaba 9 am – 4 pm: el mismo día
+  daba dos cifras. Ahora todo sale de `calibracion.jornada`, y el
+  subtítulo dice qué es cada número (viento y ola son máximos, el cielo
+  es promedio — antes decía "máximos" a secas).
+- Los días se nombran igual en todas partes (`nombreDia`: "hoy",
+  "mañana", "jueves 27"); antes la vista de punto decía "Jue 27".
+
+### La calibración: qué se movió de verdad
+
+Los `hastaKt` de `calibracion.ts` eran **cajones** ("de 8 a 12 kt →
+0.65") y la interpolación de la ronda 11 los leyó como **puntos de una
+curva**, sin decirlo. Medido:
+
+| viento | cajón (antes) | curva (ahora) | Δ sobre 45 pts |
+|---|---|---|---|
+| 5 kt | 1.000 | 1.000 | 0.0 |
+| 8 kt | 0.900 | 0.900 | 0.0 |
+| 8.1 kt | 0.650 | 0.894 | **+11.0** |
+| 10 kt | 0.650 | 0.775 | +5.6 |
+| 12 kt | 0.650 | 0.650 | 0.0 |
+| 18.1 kt | 0.050 | 0.177 | +5.7 |
+| 22 kt | 0.050 | 0.050 | 0.0 |
+
+Desvío medio entre 0 y 25 kt: **+3.0 puntos**, siempre hacia arriba. O
+sea: la app venía puntuando un poco más suelto que la calibración a
+mano, y el comentario decía lo contrario.
+
+Se resolvió **haciendo explícita la curva** en vez de esconderla:
+`viento.tramos` → `viento.curva`, con campos `kt`/`frac` y un anclaje
+en 0. Cada número que ajustó Tommy vale exactamente en su propio valor
+(hay un test que recorre la curva y lo verifica anclaje por anclaje);
+lo que cambia es solo el camino entre anclajes, y ahora está escrito.
+Se mantuvo la curva y no los cajones porque el problema original es
+real: con cajones, en el golfo casi todo el año cae en el mismo cajón y
+el score deja de servir para comparar días.
+
+Para compensar lo que la pesimismo de los cajones daba gratis, se
+agregó una **raya dura de seguridad**: `seguridad.vientoPeligrosoKt`
+(22 kt). A partir de ahí el día se marca peligro sin depender de
+ninguna interpolación. Sale en el desglose como bandera ("no salir"),
+no como puntos, para no falsear el total.
+
+También se quitó el `Infinity` de las curvas (la última fila era un
+salto seco) y se corrigió que la asignación de peligro por tormenta
+**pisaba** un peligro ya marcado: un día de 25 kt con un chubasco corto
+salía "sin peligro".
+
+### Fuentes verificadas contra la API real (25-ago-2026)
+
+`hourly_units` de Open-Meteo confirma lo que el código asume: viento en
+`kn` (por `wind_speed_unit=kn`), ola y `sea_level_height_msl` en m,
+período en s, lluvia en mm, CAPE en J/kg, nubosidad en %. Las dos APIs
+devuelven 192 h (8 días) sin nulos para los 9 puntos. La marea de
+Contadora oscila entre −1.63 y +2.87 m sobre el nivel medio, coherente
+con el rango del golfo. Nada de lo que dicen los comentarios del código
+está inventado.
+
+### Lo demás de la revisión de código
+
+`env(safe-area-inset-bottom)` se contaba dos veces (el aviso ya lo
+incluye) y dejaba ~34 px muertos en iPhone con notch; el rango de viento
+comparaba en nudos mientras mostraba en km/h; el rango del día mezclaba
+el mínimo de un punto con el máximo de otro, así que "2–9 kt" podía no
+darse en ningún punto real (ahora sale del corredor hora a hora, el peor
+de salida y destino en cada hora); el `aria-label` del score de playa
+colgaba de un `<span>` con los dos hijos en `aria-hidden` (ahora
+`role="img"`); y un E2E decía "exactamente un sello" pero pasaba con
+cero.

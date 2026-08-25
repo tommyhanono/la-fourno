@@ -70,6 +70,56 @@ describe('scoreBloque — casos borde', () => {
     expect(larga.total).toBeLessThan(corta.total)
   })
 
+  it('la curva respeta EXACTAMENTE cada anclaje de la calibración', () => {
+    // Este es el contrato con calibracion.ts: los números que Tommy
+    // ajustó a mano tienen que salir tal cual en su propio valor. Entre
+    // anclajes se interpola, pero en el anclaje no se negocia.
+    for (const a of CALIBRACION.viento.curva) {
+      const r = scoreBloque({ ...base, vientoKt: a.kt, rachaKt: a.kt })
+      const viento = r.contribuciones.find((c) => c.clave === 'viento')!
+      expect(viento.puntos).toBeCloseTo(
+        Math.round(CALIBRACION.pesos.viento * a.frac * 10) / 10,
+        6,
+      )
+    }
+  })
+
+  it('la curva nunca sube al subir el viento (monótona) y no se extrapola', () => {
+    let previo = Infinity
+    for (let kt = 0; kt <= 40; kt += 0.25) {
+      const r = scoreBloque({ ...base, vientoKt: kt, rachaKt: kt })
+      const pts = r.contribuciones.find((c) => c.clave === 'viento')!.puntos
+      expect(pts).toBeLessThanOrEqual(previo + 1e-9)
+      expect(pts).toBeGreaterThanOrEqual(0)
+      previo = pts
+    }
+  })
+
+  it('viento de peligro marca bandera aunque el resto del día esté perfecto', () => {
+    const kt = CALIBRACION.seguridad.vientoPeligrosoKt
+    const justoDebajo = scoreBloque({ ...base, vientoKt: kt - 0.5, rachaKt: kt - 0.5 })
+    const enLaRaya = scoreBloque({ ...base, vientoKt: kt, rachaKt: kt })
+    expect(justoDebajo.peligro).toBe(false)
+    expect(enLaRaya.peligro).toBe(true)
+    // la bandera explica por qué, y no falsea el total
+    const bandera = enLaRaya.contribuciones.find((c) => c.clave === 'viento-peligroso')!
+    expect(bandera.tipo).toBe('bandera')
+    expect(bandera.puntos).toBe(0)
+  })
+
+  it('una tormenta corta no borra el peligro que ya marcó el viento', () => {
+    // La asignación de la tormenta pisaba el peligro anterior: un día de
+    // 25 kt con un chubasco de 1 h salía "sin peligro".
+    const r = scoreBloque({
+      ...base,
+      vientoKt: 25,
+      rachaKt: 27,
+      weatherCodes: [0, 95],
+      tormentaFrac: 1 / 7,
+    })
+    expect(r.peligro).toBe(true)
+  })
+
   it('todos los datos faltantes: score 0 sin reventar, marcado parcial', () => {
     const r = scoreBloque({
       vientoKt: null,

@@ -89,11 +89,10 @@ main {
   gap: var(--space-6);
   /* Deja aire para el aviso fijo. --aviso-alto lo mide el propio aviso
      (ver Marco.tsx): con el texto agrandado del teléfono crece mucho y
-     un valor fijo tapaba el final del contenido. El 96px es solo el
-     respaldo para el primer pintado. */
-  padding-bottom: calc(
-    var(--aviso-alto, 96px) + var(--space-6) + env(safe-area-inset-bottom)
-  );
+     un valor fijo tapaba el final del contenido. Ya incluye el
+     safe-area del iPhone, así que aquí NO se vuelve a sumar. El 96px
+     es solo el respaldo para el primer pintado. */
+  padding-bottom: calc(var(--aviso-alto, 96px) + var(--space-6));
 }
 
 /* ---------- foco visible (piso de calidad) ---------- */
@@ -171,7 +170,7 @@ summary:focus-visible {
 }
 .estado-dato.sin-datos { color: var(--color-danger); font-weight: 700; }
 
-/* ---------- hero / ventanas ---------- */
+/* ---------- hero / veredicto ---------- */
 .titulo-hero {
   font-family: var(--fuente-titulos);
   font-size: clamp(1.6rem, 6vw, 2.2rem);
@@ -183,13 +182,6 @@ summary:focus-visible {
   color: var(--color-text-muted);
   font-size: 0.95rem;
   margin-bottom: var(--space-4);
-}
-
-.ventanas {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
 }
 
 .tarjeta {
@@ -205,38 +197,47 @@ summary:focus-visible {
   margin-bottom: var(--space-3);
 }
 
-.ventana.mejor {
+/* El veredicto: la única respuesta de la pantalla, invertida para que
+   se lea antes que nada. Texto sobre superficie plana, nunca sobre el
+   acento (el acento queda en la sombra). */
+.veredicto {
   background: var(--color-text);
   color: var(--color-bg);
   box-shadow: 5px 5px 0 0 var(--color-action);
 }
-.ventana.mejor .ventana-resumen { color: oklch(0.85 0.02 85); }
-.ventana.mejor .desglose summary { color: oklch(0.85 0.02 85); }
-
-.ventana-cabeza {
+.veredicto-kicker {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: oklch(0.8 0.02 85);
+}
+.veredicto-cabeza {
   display: flex;
   align-items: baseline;
   gap: var(--space-3);
   flex-wrap: wrap;
+  margin-top: var(--space-1);
 }
-
-.ventana-dia {
+.veredicto-dia {
   font-family: var(--fuente-titulos);
-  font-size: 1.45rem;
+  font-size: clamp(1.7rem, 7vw, 2.4rem);
+  line-height: 1.05;
   text-transform: capitalize;
 }
-
-.ventana-horas {
-  font-size: 1.15rem;
+.veredicto-destino {
+  margin-top: var(--space-3);
+  font-size: 1.02rem;
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
-
-.ventana-resumen {
+.veredicto-destino a { color: inherit; }
+.veredicto-cond,
+.veredicto-forma {
   margin-top: var(--space-2);
-  color: var(--color-text-muted);
+  color: oklch(0.85 0.02 85);
   font-size: 0.98rem;
 }
+.veredicto .desglose summary { color: oklch(0.85 0.02 85); }
 
 .badge-score {
   margin-left: auto;
@@ -264,13 +265,17 @@ summary:focus-visible {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   line-height: 1.15;
+  /* Con el texto del teléfono al 200 % "REGULAR" no cabe y, al ser una
+     palabra sola, empujaba la página a lo ancho en vez de bajar. */
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .nivel-ok { color: var(--color-ok); }
 .nivel-warn { color: var(--color-warn); }
 .nivel-danger { color: var(--color-danger); }
-.ventana.mejor .nivel-ok { color: oklch(0.82 0.14 150); }
-.ventana.mejor .nivel-warn { color: oklch(0.8 0.13 75); }
-.ventana.mejor .nivel-danger { color: oklch(0.75 0.16 25); }
+.veredicto .nivel-ok { color: oklch(0.82 0.14 150); }
+.veredicto .nivel-warn { color: oklch(0.8 0.13 75); }
+.veredicto .nivel-danger { color: oklch(0.75 0.16 25); }
 
 /* ---------- desglose ---------- */
 .desglose { margin-top: var(--space-3); }
@@ -309,7 +314,16 @@ summary:focus-visible {
 
 .desglose-lista .pts { font-weight: 700; white-space: nowrap; }
 .desglose-lista .resta .pts { color: var(--color-danger); }
-.ventana.mejor .desglose-lista .resta .pts { color: oklch(0.75 0.16 25); }
+/* La bandera no es un número: es la razón por la que el día no se
+   sale. Se lee como etiqueta, no como puntaje. */
+.desglose-lista .bandera .pts {
+  color: var(--color-danger);
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+}
+.veredicto .desglose-lista .bandera .pts { color: oklch(0.75 0.16 25); }
+.veredicto .desglose-lista .resta .pts { color: oklch(0.75 0.16 25); }
 .desglose-lista .nota-parcial { color: var(--color-warn); font-size: 0.85rem; }
 
 /* ---------- día por día ---------- */
@@ -345,6 +359,10 @@ summary:focus-visible {
   align-items: center;
   gap: var(--space-3);
   min-height: 34px;
+  /* Tres cosas en la misma línea (día, sello, badge) no caben con el
+     texto agrandado del teléfono: tienen que BAJAR, no aplastarse. Sin
+     esto el badge quedaba en 14 px y "Regular" se salía de su caja. */
+  flex-wrap: wrap;
 }
 .dia-nombre {
   font-family: var(--fuente-titulos);
@@ -352,7 +370,7 @@ summary:focus-visible {
   text-transform: capitalize;
   line-height: 1.1;
 }
-.dia-cabeza .badge-score { margin-left: auto; }
+.dia-cabeza .badge-score { margin-left: auto; flex-shrink: 0; }
 
 /* El mejor día de la semana: borde de acento y sello. El color no va
    solo — lleva la palabra, como manda el piso de calidad. */
@@ -368,6 +386,7 @@ summary:focus-visible {
   letter-spacing: 0.06em;
   padding: 3px 7px;
   line-height: 1.2;
+  flex-shrink: 0;
 }
 
 /* Los datos del día: etiqueta arriba, número abajo. Cifras tabulares
@@ -408,11 +427,10 @@ summary:focus-visible {
   text-underline-offset: 3px;
 }
 
-.dia-momento {
+.dia-forma {
   font-size: 0.9rem;
   color: var(--color-text-muted);
 }
-.dia-momento strong { color: var(--color-text); font-variant-numeric: tabular-nums; }
 
 .dia-extra {
   font-size: 0.85rem;
@@ -681,7 +699,7 @@ summary:focus-visible {
   color: var(--color-text);
 }
 
-/* reserva el alto de las 3 ventanas mientras cargan (evita CLS) */
+/* reserva el alto del veredicto mientras carga (evita CLS) */
 .vacio.alto { min-height: 496px; }
 .vacio svg { flex-shrink: 0; color: var(--color-danger); }
 

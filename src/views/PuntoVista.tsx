@@ -3,6 +3,7 @@
 
 import { useMemo } from 'react'
 import { PUNTOS, puntoPorId } from '../config/puntos'
+import { CALIBRACION } from '../config/calibracion'
 import type { EstadoDatos } from '../state/hooks'
 import type { Unidades } from '../lib/units'
 import { fmtViento, fmtOla, fmtTemp, fmtMarea, refMarea, procedencia } from '../lib/units'
@@ -19,7 +20,6 @@ import {
   horaCorta,
   claveDia,
   ahoraPanama,
-  diaCorto,
   nombreDia,
 } from '../lib/time'
 
@@ -270,7 +270,10 @@ function VistaPlaya({
 
       <section className="tarjeta" aria-label="Días de playa esta semana">
         <h2>¿Qué día de playa?</h2>
-        <p className="sub-seccion">Puntuado sobre las horas de playa: 9 am – 4 pm.</p>
+        <p className="sub-seccion">
+          Puntuado sobre las horas de playa: {hora12(CALIBRACION.jornada.desdeHora)}{' '}
+          a {hora12(CALIBRACION.jornada.hastaHora)}.
+        </p>
         <ul className="semana">
           {dias.map((d) => (
             <li key={d.clave} className="semana-fila">
@@ -290,10 +293,14 @@ function VistaPlaya({
 }
 
 function SemanaNav({ f, m, unidades }: { f: F; m: M; unidades: Unidades }) {
-  // Resumen por día: viento máx (día 6 am – 6 pm), ola máx, cielo típico.
+  // Resumen por día en la MISMA franja que el "Día por día" del inicio
+  // (la jornada de calibracion.ts). Antes esto iba de 6 am a 6 pm y el
+  // mismo día daba dos números distintos según dónde lo miraras.
+  const { desdeHora, hastaHora } = CALIBRACION.jornada
+  const hh = (h: number) => `${String(h).padStart(2, '0')}:00`
   const dias = f.daily.time.map((dia) => {
-    const desde = parsePanama(`${dia}T06:00`).getTime()
-    const hasta = parsePanama(`${dia}T18:00`).getTime()
+    const desde = parsePanama(`${dia}T${hh(desdeHora)}`).getTime()
+    const hasta = parsePanama(`${dia}T${hh(hastaHora)}`).getTime()
     let vientoMax: number | null = null
     let probMax: number | null = null
     let nubes: number[] = []
@@ -325,15 +332,17 @@ function SemanaNav({ f, m, unidades }: { f: F; m: M; unidades: Unidades }) {
   return (
     <section className="tarjeta" aria-label="Resumen semanal">
       <h2>La semana</h2>
-      {/* La franja se declara: el "Día por día" del inicio usa la jornada
-          de 9 am – 4 pm y daría otros números para el mismo día. */}
+      {/* Qué es cada número, dicho tal cual: mezclar máximos y promedios
+          sin avisar es lo que hacía dudar del dato. */}
       <p className="sub-seccion">
-        Máximos de cada día entre 6 am y 6 pm, en este punto.
+        Solo este punto, en tu jornada ({hora12(desdeHora)} a{' '}
+        {hora12(hastaHora)}). Viento y ola son el máximo del día; el cielo,
+        el promedio. El inicio suma además el punto de salida.
       </p>
       <ul className="semana">
         {dias.map((d) => (
           <li key={d.dia} className="semana-fila">
-            <span className="semana-dia">{diaCorto(parsePanama(`${d.dia}T12:00`))}</span>
+            <span className="semana-dia">{nombreDia(parsePanama(`${d.dia}T12:00`))}</span>
             <span className="semana-datos">
               <Icono nombre="viento" size={18} /> {fmtViento(d.vientoMax, unidades)}
               {' · '}
@@ -417,6 +426,13 @@ function indiceHoraActual(times: string[]): number {
     else break
   }
   return mejor
+}
+
+/** "9 am" a partir de la hora entera de la calibración. */
+function hora12(h: number): string {
+  const ampm = h < 12 ? 'am' : 'pm'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12} ${ampm}`
 }
 
 function medianoche(d: Date): Date {
