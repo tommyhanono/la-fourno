@@ -297,3 +297,122 @@ de salida y destino en cada hora); el `aria-label` del score de playa
 colgaba de un `<span>` con los dos hijos en `aria-hidden` (ahora
 `role="img"`); y un E2E decía "exactamente un sello" pero pasaba con
 cero.
+
+## 13. Auditoría de fuentes contra las APIs en vivo (2026-08-31)
+
+Revisión de exactitud pedida así: *"revises tus sources… necesito que sea
+MUY MUY acurate"*. Se midió todo contra Open-Meteo en vivo y contra el
+archivo histórico de la temporada seca, no contra la intuición. Tres
+hallazgos cambiaron código, dos cambiaron documentación, y una "mejora"
+se probó y se **descartó**.
+
+### 13.1 El clima se pedía sobre la celda de TIERRA (corregido)
+
+Open-Meteo, por defecto, resuelve cada coordenada a la celda de **tierra**
+más cercana. Sobre tierra el viento sale frenado por la rugosidad del
+suelo, así que para una app de mar es el dato equivocado. Con
+`cell_selection=sea`, medido el 31-ago-2026:
+
+| punto | viento medio | máximo |
+|---|---|---|
+| Las Sirenas | 4.0 → 5.1 kt | 8.6 → **11.0 kt** (+28 %) |
+| Coronado | 2.1 → 3.0 kt | 6.1 → **8.8 kt** (+44 %) |
+| Islas Ocean Reef | 4.4 → 4.9 kt | 9.3 → 10.2 kt |
+| Marina Ocean Reef | 4.9 → 4.9 kt | 8.8 → 10.2 kt |
+
+Cambia la celda en 4 de los 9 puntos y **siempre hacia más viento**, o sea
+hacia el lado seguro. Hay un test que falla si alguien borra el flag.
+
+### 13.2 Medir el picado con el chop: probado y DESCARTADO
+
+La idea sonaba bien: `wave_period` es el período del mar combinado, un
+swell largo debería esconder el golpeteo corto del viento, así que habría
+que medir el chop aparte con `wind_wave_*`. **Es falsa**, y llegó a estar
+implementada antes de que los datos la tumbaran.
+
+1. `wave_period` es media **ponderada por energía**: baja sola cuando el
+   chop domina. Contadora, temporada seca, 1440 h — según la fracción de
+   energía que aporta el chop: 0-10 % → 9.7 s · 25-50 % → 7.9 s ·
+   50-75 % → 6.1 s · 75-100 % → **4.8 s**. Responde perfecto.
+2. Cobraría dos veces el viento. El chop es casi función pura del viento
+   local (0-5 kt → 0.04 m · 8-12 kt → 0.25 m · 15+ kt → 0.62 m) y
+   **79-100 %** de las horas que castigaría ya tienen viento ≥12 kt, donde
+   la curva ya quitó 16-27 puntos.
+3. El "día trampa" (mar picado con el viento ya calmado) **no existe** en
+   el Golfo: chop ≥0.4 m con viento <10 kt ocurrió **0 veces en 480 h**.
+   Es una cuenca de fetch limitado; el mar de viento sube y baja con el
+   viento y no queda picada vieja.
+
+De paso: sin una reja de altura mínima, el cambio inventaba 16
+penalizaciones de −15 pts en días de calma chicha, porque el modelo
+devuelve chops de 0.02 m con período 0.1 s (ruido) y ese ratio cruza
+cualquier umbral de steepness. Queda la nota larga en `score.ts` para que
+nadie lo "arregle" de nuevo.
+
+### 13.3 Los modelos se contradicen, y ahora se dice (nuevo)
+
+Tercera request, opcional, solo viento, ~58 KB: ECMWF, GFS e ICON por
+separado. El 1-sep-2026 el viento típico de jornada del corredor era
+10.2 kt (ECMWF), 10.8 (GFS) y **5.8** (ICON): el mismo día valía 34 o 44
+puntos de viento según a quién le creyeras.
+
+El desacuerdo se mide **en puntos del score, no en nudos**, porque la
+curva no es recta: 3 kt de diferencia no significan nada a 5 kt y lo
+cambian todo a 13 kt. Umbral elegido midiendo — desacuerdos de la semana:
+5.7 · 11.4 · 0.0 · 3.3 · 3.7 · 9.1 · 1.6 · 2.9. Con 8 se marcan 2 de 8
+días; con 4 se marcarían 3 de 8 y el aviso se vuelve papel tapiz.
+Verificado con datos reales en vivo: marca 2 de 7 días, y el día
+recomendado **no** queda marcado (los tres modelos coinciden en él).
+
+Si esa request falla, la app da el mismo pronóstico y solo pierde el
+aviso. No se anota como falla visible: el multimodelo no es "el clima".
+
+### 13.4 La forma del día se calla cuando el día es dudoso
+
+Medido: con la vara real de la app (`UMBRAL_FORMA` = 6 puntos) los tres
+modelos coinciden en la forma del día en **6 de 8 días**, y los 2 que
+fallan son exactamente los 2 marcados como dudosos. Así que en un día
+dudoso ya no se afirma "está mejor temprano": si no coinciden ni en cómo
+viene el día entero, menos en qué mitad es mejor.
+
+Se agregó también `enCurso`: con la jornada ya arrancada la forma del día
+tampoco se muestra, porque a las 2 pm "está mejor temprano" habla de una
+mañana que ya pasó. Antes se decía igual.
+
+### 13.5 La marea: qué se verificó de verdad
+
+`tide.ts` afirmaba *"error típico validado: ~±30 min contra la tabla
+armónica de Balboa"*. **Esa validación nunca se hizo.** Corregido en el
+comentario. Lo que sí se comprobó (Contadora, 8 días):
+
+- 30 extremos, 15 pleamares y 15 bajamares: semidiurna limpia.
+- Pleamar→pleamar **12.48 h** contra 12.42 h teóricos de M2 (0.5 %).
+- Ciclo sicigia→cuadratura correcto: el rango cae de 4.52 m a 2.70 m en
+  seis días y vuelve a crecer.
+- Rango de sicigia 4.5-4.7 m, del orden del de Balboa.
+
+Período, fase y amplitud se comportan como una marea real del Golfo.
+Sigue siendo modelo, y la etiqueta "estimada" no se quita.
+
+### 13.6 Resolución real: 9 puntos NO son 9 pronósticos
+
+Las celdas del modelo son de ~11 km y varios puntos caen en la misma.
+Contadora, Chapera y Caracoles comparten celda **atmosférica** (viento y
+cielo idénticos); Marina e Islas Ocean Reef comparten celda **marina**
+(ola idéntica). De 9 puntos salen 7 celdas de clima y 6 de mar. Los 9
+puntos existen porque son 9 destinos, no porque el modelo los distinga.
+Documentado en `api.ts`. Los desvíos de la coordenada pedida a la celda
+van de 0.6 km (Contadora) a 11.3 km (Islas Ocean Reef).
+
+### 13.7 CAPE: bien calibrado, no se toca
+
+`capeAltoJkg: 2500` dispara en 6.3 % de las horas (mediana de Panamá en
+agosto: 1740 J/kg, p90 2360). Es el percentil ~93: justo lo que debe ser
+un "atmósfera muy cargada".
+
+### 13.8 Los tests no se typecheaban
+
+`tsc` solo incluía `src`. Por eso un fixture al que le faltaba un campo de
+`DatosApp` pasaba sin ruido, y el camino nuevo quedaba sin probar. Un
+fixture que miente sobre la forma de los datos es peor que no tener test:
+da confianza falsa. Se agregó `tsconfig.test.json` y `npm run typecheck`.

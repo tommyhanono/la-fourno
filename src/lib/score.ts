@@ -16,9 +16,14 @@ export interface EntradaBloque {
   probLluviaPct: number | null
   /** lluvia máxima, mm/h */
   lluviaMmH: number | null
-  /** altura de ola máxima, m */
+  /** altura de ola máxima, m (mar TOTAL: swell + chop) */
   olaM: number | null
-  /** período de ola mínimo, s */
+  /**
+   * Período mínimo del mar total, s. Es la media ponderada por energía
+   * del estado de mar completo: si el chop del viento domina, este
+   * número baja solo. Por eso alcanza para juzgar el picado y no hace
+   * falta el desglose swell/chop (verificado, ver 'mar-corto' abajo).
+   */
   periodoS: number | null
   /** códigos WMO del bloque */
   weatherCodes: number[]
@@ -88,6 +93,16 @@ function curvaFrac<K extends string>(
   return curva[curva.length - 1].frac
 }
 
+/**
+ * Puntos de viento (0..pesos.viento) que le tocan a una velocidad.
+ * Se expone para poder medir el desacuerdo entre modelos EN LA MISMA
+ * MONEDA que el score: 3 kt de diferencia no significan nada a 5 kt y
+ * lo cambian todo a 13 kt, porque la curva no es recta.
+ */
+export function puntosViento(kt: number, cal: Calibracion = CALIBRACION): number {
+  return cal.pesos.viento * curvaFrac(cal.viento.curva, 'kt', kt)
+}
+
 const r1 = (x: number) => Math.round(x * 10) / 10
 
 /** Score de navegación para un bloque de 2 h en el corredor. */
@@ -154,6 +169,10 @@ export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): R
       puntos: r1(cal.pesos.ola * frac),
       tipo: 'base',
     })
+    // periodoS es el período MEDIO del mar total, ponderado por energía:
+    // baja solo cuando el chop realmente domina (ver la nota larga en la
+    // sección de mar corto). Por eso pedir ≥12 s ya garantiza que es
+    // swell limpio, sin golpeteo encima.
     if (e.periodoS != null && e.periodoS >= cal.ola.periodoLargoS && e.olaM <= 0.9) {
       c.push({
         clave: 'mar-viejo',
@@ -264,6 +283,30 @@ export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): R
       })
       peligro = true
     } else if (
+      // NO CAMBIAR ESTO A wind_wave_* SIN LEER LO DE ABAJO.
+      // Se probó el 31-ago-2026 y se descartó con datos.
+      //
+      // La idea tentadora: "wave_period es el mar combinado, un swell
+      // largo esconde el golpeteo corto del viento; hay que medir el
+      // chop aparte con wind_wave_height / wind_wave_period".
+      //
+      // Es falsa. wave_period es la media PONDERADA POR ENERGÍA, así que
+      // baja sola cuando el chop pasa a dominar. Medido en Contadora,
+      // temporada seca 2026 (1440 h), según la fracción de energía que
+      // aporta el chop:  0-10 % → 9.7 s · 25-50 % → 7.9 s ·
+      // 50-75 % → 6.1 s · 75-100 % → 4.8 s. Responde perfecto.
+      //
+      // Y cambiarlo empeoraba el score por dos lados:
+      //  1. Cobra dos veces el viento. El chop es casi función pura del
+      //     viento local (0-5 kt → 0.04 m · 8-12 kt → 0.25 m ·
+      //     15+ kt → 0.62 m), y 79-100 % de las horas que castigaría ya
+      //     tienen viento ≥12 kt, donde la curva ya quitó 16-27 pts.
+      //  2. El "día trampa" (mar picado con viento ya calmado) NO existe
+      //     acá: chop ≥0.4 m con viento <10 kt ocurrió 0 veces en 480 h.
+      //     El Golfo es cuenca de fetch limitado, el mar de viento sube
+      //     y baja con el viento y no queda picada vieja.
+      //
+      // Detalle completo en DECISIONES.md §13.
       e.periodoS != null &&
       e.periodoS > 0 &&
       e.olaM / e.periodoS > s.marCortoRatio

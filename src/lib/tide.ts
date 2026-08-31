@@ -1,8 +1,21 @@
 // Marea a partir de sea_level_height_msl (horario). SIEMPRE es un
 // ESTIMADO de modelo (CMEMS vía Open-Meteo) — el UI lo marca así.
 // Los extremos se afinan con interpolación parabólica entre las tres
-// horas alrededor de cada pico (error típico validado: ~±30 min
-// contra la tabla armónica de Balboa; ver DECISIONES.md).
+// horas alrededor de cada pico: con datos horarios el instante del pico
+// cae entre muestras, y el vértice de la parábola lo recupera.
+//
+// QUÉ SE VERIFICÓ DE VERDAD (31-ago-2026, Contadora, 8 días)
+// No hay comparación contra la tabla armónica oficial de Balboa: acá
+// no se validó eso, y antes este comentario lo afirmaba de más. Lo que
+// sí se comprobó es la consistencia física de la serie:
+//   · 30 extremos en 8 días, 15 pleamares y 15 bajamares (semidiurna).
+//   · Pleamar→pleamar: 12.48 h medidos contra 12.42 h teóricos de la
+//     componente M2. Error 0.5 %, ~4 min por ciclo.
+//   · Ciclo sicigia→cuadratura correcto: el rango cae de 4.52 m a
+//     2.70 m en seis días y vuelve a crecer.
+//   · Rango de sicigia 4.5-4.7 m, del orden del de Balboa.
+// O sea: período, fase y amplitud se comportan como una marea real del
+// Golfo. Sigue siendo un modelo, y la etiqueta "estimada" no se quita.
 
 import type { ExtremoMarea } from './types'
 import { parsePanama } from './time'

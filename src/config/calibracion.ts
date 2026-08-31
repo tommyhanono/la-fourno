@@ -110,7 +110,9 @@ export const CALIBRACION = {
       { m: 1.8, frac: 0.1 },
       { m: 2.5, frac: 0 },
     ] as AnclajeM[],
-    // Período largo = mar viejo, cómodo. Bono si período ≥ este valor.
+    // Período largo = mar viejo, cómodo. Bono si el período medio del
+    // mar total llega a este valor. Como ese período está ponderado por
+    // energía, pedir ≥12 s ya implica swell limpio sin chop encima.
     periodoLargoS: 12,
     periodoLargoBono: 3,
   },
@@ -177,6 +179,22 @@ export const CALIBRACION = {
       { pct: 100, frac: 0 },
     ] as AnclajePct[],
   },
+
+  /**
+   * Desacuerdo entre modelos, medido en puntos de viento del score
+   * (de 45), a partir del cual el día se marca como "no confiable".
+   *
+   * No es cosmético: el 1-sep-2026 el viento típico de jornada del
+   * corredor era 10.2 kt (ECMWF), 10.8 (GFS) y 5.8 (ICON) — el mismo
+   * día valía 34 o 44 puntos de viento según a quién le creyeras.
+   *
+   * El umbral se eligió midiendo: sobre los 8 días de esa semana los
+   * desacuerdos fueron 5.7 · 11.4 · 0.0 · 3.3 · 3.7 · 9.1 · 1.6 · 2.9.
+   * Con 8 se marcan 2 de 8 días, justo los dos genuinamente flojos.
+   * Bajarlo a 4 marcaría 3 de 8 y el aviso se vuelve papel tapiz:
+   * si sale casi siempre, deja de querer decir algo.
+   */
+  desacuerdoModelosPts: 8,
 
   /** Etiquetas de calidad del score total. */
   niveles: [

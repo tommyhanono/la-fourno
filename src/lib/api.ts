@@ -1,9 +1,24 @@
 // Fetch a Open-Meteo (forecast + marine), en lote: una sola request
 // por API para los 9 puntos (lat/lon separados por coma).
 // Sin API key, gratis. Horizonte: hoy + 7 días, horario, hora Panamá.
+//
+// RESOLUCIÓN REAL (medido 31-ago-2026, ver DECISIONES.md §13)
+// Los 9 puntos NO son 9 pronósticos independientes: el modelo tiene
+// celdas de ~11 km y varios puntos caen en la misma. Contadora,
+// Chapera y Caracoles comparten celda atmosférica; Marina e Islas
+// Ocean Reef comparten celda marina. La app muestra 9 puntos porque
+// son 9 destinos de Tommy, no porque el modelo los distinga.
+//
+// CELDA DE MAR, NO DE TIERRA
+// Por defecto Open-Meteo prefiere la celda de TIERRA más cercana, y
+// sobre tierra el viento sale frenado por la rugosidad del suelo.
+// Para una app de mar eso es el dato equivocado. Con cell_selection=sea
+// se midió: Las Sirenas máx 8.6 → 11.0 kt, Coronado 6.1 → 8.8 kt,
+// Marina 8.8 → 10.2 kt. Siempre hacia MÁS viento, o sea hacia el lado
+// seguro. La API marina ya es de mar por definición: no lleva el flag.
 
 import { PUNTOS } from '../config/puntos'
-import type { DatosApp, PuntoForecast, PuntoMarine } from './types'
+import type { DatosApp, PuntoForecast, PuntoMarine, PuntoModelos } from './types'
 
 const TZ = 'America%2FPanama'
 const DIAS = 8 // hoy + 7
@@ -21,6 +36,9 @@ const HOURLY_FORECAST = [
   'cape',
 ].join(',')
 
+// A propósito NO se piden wind_wave_* ni swell_wave_*: se evaluaron el
+// 31-ago-2026 y no aportan. wave_period ya es media ponderada por
+// energía y baja sola cuando el chop domina. Ver score.ts ('mar-corto').
 const HOURLY_MARINE = [
   'wave_height',
   'wave_period',
@@ -40,7 +58,8 @@ export function urlForecast(): string {
   return (
     `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
     `&hourly=${HOURLY_FORECAST}&daily=sunrise,sunset` +
-    `&timezone=${TZ}&forecast_days=${DIAS}&wind_speed_unit=kn`
+    `&timezone=${TZ}&forecast_days=${DIAS}&wind_speed_unit=kn` +
+    `&cell_selection=sea`
   )
 }
 
@@ -49,6 +68,32 @@ export function urlMarine(): string {
   return (
     `https://marine-api.open-meteo.com/v1/marine?latitude=${lats}&longitude=${lons}` +
     `&hourly=${HOURLY_MARINE}&timezone=${TZ}&forecast_days=${DIAS}`
+  )
+}
+
+/**
+ * Los tres modelos globales por separado, SOLO viento. Sirve para una
+ * cosa: saber cuánto se contradicen entre ellos.
+ *
+ * El pronóstico normal (best_match) da un número y punto. Pero medido
+ * el 31-ago-2026 sobre el corredor, el viento típico de jornada del
+ * 1-sep era 10.2 kt según ECMWF, 10.8 según GFS y 5.8 según ICON: el
+ * mismo día vale 34 o 44 puntos de viento según a quién le creas. Sin
+ * esto la app enseña "68/100" con la misma cara en un día firme que en
+ * uno donde los modelos no se ponen de acuerdo.
+ *
+ * Solo viento porque es el 45 % del score y el que más se mueve. Pesa
+ * ~58 KB y la request es opcional: si falla, la app anda igual y
+ * simplemente no marca desacuerdo.
+ */
+export const MODELOS = ['ecmwf_ifs025', 'gfs_seamless', 'icon_seamless'] as const
+
+export function urlModelos(): string {
+  const { lats, lons } = coords()
+  return (
+    `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
+    `&hourly=wind_speed_10m&timezone=${TZ}&forecast_days=${DIAS}` +
+    `&wind_speed_unit=kn&cell_selection=sea&models=${MODELOS.join(',')}`
   )
 }
 
@@ -71,16 +116,21 @@ function asArray<T>(x: T | T[]): T[] {
 export async function bajarDatos(): Promise<DatosApp> {
   const fallas: string[] = []
 
-  const [rf, rm] = await Promise.allSettled([
+  const [rf, rm, rx] = await Promise.allSettled([
     fetchJson<PuntoForecast | PuntoForecast[]>(urlForecast()),
     fetchJson<PuntoMarine | PuntoMarine[]>(urlMarine()),
+    fetchJson<PuntoModelos | PuntoModelos[]>(urlModelos()),
   ])
 
   const forecast = rf.status === 'fulfilled' ? asArray(rf.value) : null
   const marine = rm.status === 'fulfilled' ? asArray(rm.value) : null
+  const modelos = rx.status === 'fulfilled' ? asArray(rx.value) : null
 
   if (rf.status === 'rejected') fallas.push('clima (Open-Meteo forecast)')
   if (rm.status === 'rejected') fallas.push('mar y marea (Open-Meteo marine)')
+  // El multimodelo NO se anota como falla visible: es un extra para
+  // medir incertidumbre. Sin él la app da el mismo pronóstico, solo
+  // deja de avisar cuándo los modelos se contradicen.
 
   // Sin clima no hay app: el forecast es la columna vertebral.
   if (!forecast || forecast.length !== PUNTOS.length) {
@@ -94,6 +144,7 @@ export async function bajarDatos(): Promise<DatosApp> {
       marine && marine.length === PUNTOS.length
         ? marine
         : PUNTOS.map(() => null),
+    modelos: modelos && modelos.length === PUNTOS.length ? modelos : null,
     fallas,
   }
 }

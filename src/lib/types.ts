@@ -30,7 +30,14 @@ export interface PuntoForecast {
 
 export interface HorarioMarine {
   time: string[]
+  /** Mar total (swell + chop combinados). */
   wave_height: (number | null)[]
+  /**
+   * Período medio del mar total, ponderado por energía. Baja solo
+   * cuando el chop del viento domina, así que sirve para juzgar el
+   * picado sin pedir el desglose wind_wave/swell (probado y descartado:
+   * ver score.ts, contribución 'mar-corto').
+   */
   wave_period: (number | null)[]
   wave_direction: (number | null)[]
   sea_level_height_msl: (number | null)[]
@@ -42,12 +49,34 @@ export interface PuntoMarine {
   hourly: HorarioMarine
 }
 
+/**
+ * Viento de cada modelo global por separado. Las claves llegan con el
+ * modelo pegado al nombre: `wind_speed_10m_ecmwf_ifs025`, etc. Se usa
+ * solo para medir cuánto se contradicen entre ellos, nunca para
+ * pronosticar: para eso manda best_match, que es `forecast`.
+ */
+export interface HorarioModelos {
+  time: string[]
+  [clave: string]: string[] | (number | null)[]
+}
+
+export interface PuntoModelos {
+  latitude: number
+  longitude: number
+  hourly: HorarioModelos
+}
+
 /** Todo lo que la app necesita, ya bajado. Indexado igual que PUNTOS. */
 export interface DatosApp {
   /** ISO con offset de Panamá del momento del fetch */
   fetchedAt: string
   forecast: PuntoForecast[]
   marine: (PuntoMarine | null)[]
+  /**
+   * Viento por modelo, para medir incertidumbre. null si esa request
+   * falló: es un extra, la app funciona igual sin él.
+   */
+  modelos: PuntoModelos[] | null
   /** APIs que fallaron en el último intento (para avisar sin romper) */
   fallas: string[]
 }

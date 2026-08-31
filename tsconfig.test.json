@@ -1,0 +1,17 @@
+{
+  /* Los tests también se typechequean. Antes no: `tsconfig.app.json`
+     solo incluye "src", así que un fixture al que le faltaba un campo
+     de DatosApp pasaba sin ruido y el camino nuevo quedaba sin probar.
+     Un fixture que miente sobre la forma de los datos es peor que no
+     tener test: da confianza falsa.
+
+     Incluye "src" además de "tests" porque los tests importan el
+     código de la app y TypeScript necesita ver ambos lados. */
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "types": ["vite/client", "node"],
+    "noEmit": true
+  },
+  "include": ["src", "tests"]
+}

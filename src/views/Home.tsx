@@ -146,7 +146,10 @@ function Veredicto({ dia, unidades }: { dia: DiaJornada; unidades: Unidades }) {
         Viento {rangoViento(dia.rango, unidades)} · ola{' '}
         {rangoOla(dia.rango, unidades)} · {textoCielo(dia.entrada.nubosidadPct).toLowerCase()}
       </p>
-      <p className="veredicto-forma">{fraseForma(dia.forma)}</p>
+      {/* Misma regla que la tarjeta, sin excepciones: el veredicto no
+          puede afirmar algo que la tarjeta de abajo se calla. */}
+      {diceForma(dia) && <p className="veredicto-forma">{fraseForma(dia.forma)}</p>}
+      {dudoso(dia) && <p className="veredicto-dudoso">{TEXTO_DUDOSO}</p>}
       <Desglose score={dia.score} id="desglose-veredicto" />
     </div>
   )
@@ -211,10 +214,9 @@ function TarjetaDia({
         : <a href={`#/punto/${d.mejorDestino.id}`}>{d.mejorDestino.nombre}</a>
       </p>
 
-      {/* En un día con bandera de seguridad no se sugiere hora: decir
-          "conviene temprano" debajo de "no recomendado para salir" se
-          lee como permiso. */}
-      {!d.score.peligro && <p className="dia-forma">{fraseForma(d.forma)}</p>}
+      {diceForma(d) && <p className="dia-forma">{fraseForma(d.forma)}</p>}
+
+      {dudoso(d) && <p className="dia-dudoso">{TEXTO_DUDOSO}</p>}
 
       <p className="dia-extra">
         {d.tormentaDesde && (
@@ -236,6 +238,36 @@ function TarjetaDia({
     </li>
   )
 }
+
+/**
+ * Un día es dudoso cuando los tres modelos globales no coinciden lo
+ * suficiente como para cambiar la respuesta. No dice que el día sea
+ * malo: dice que el número todavía no está firme.
+ */
+function dudoso(d: DiaJornada): boolean {
+  return d.desacuerdo != null && d.desacuerdo >= CALIBRACION.desacuerdoModelosPts
+}
+
+/**
+ * Cuándo la app se anima a decir si el día está mejor temprano o por
+ * la tarde. Se calla en tres casos, y los tres por la misma razón: no
+ * dar un consejo más fino de lo que el dato aguanta.
+ *
+ *  · con bandera de seguridad, porque "conviene temprano" debajo de
+ *    "no recomendado para salir" se lee como permiso;
+ *  · con la jornada ya empezada, porque a las 2 pm "está mejor
+ *    temprano" habla de una mañana que ya pasó;
+ *  · en un día dudoso, porque si los modelos no coinciden ni en cómo
+ *    va a estar el día entero, menos van a coincidir en qué mitad es
+ *    mejor. Medido el 31-ago-2026 sobre la semana: los tres modelos
+ *    coincidieron en la forma en 6 de 8 días, y los 2 que fallaron
+ *    fueron exactamente los 2 marcados como dudosos.
+ */
+function diceForma(d: DiaJornada): boolean {
+  return !d.score.peligro && !d.enCurso && !dudoso(d)
+}
+
+const TEXTO_DUDOSO = 'Los modelos todavía no coinciden en este día.'
 
 function fraseForma(f: FormaDia): string {
   if (f === 'temprano') return 'Está mejor temprano: la tarde se pone peor.'

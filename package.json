@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "typecheck": "tsc -b && tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run tests/unit",
     "test:e2e": "playwright test"
   },

@@ -3,7 +3,12 @@
 // tarde con brisa, un día con tormenta para probar la seguridad.
 
 import { PUNTOS } from '../../src/config/puntos'
-import type { PuntoForecast, PuntoMarine, DatosApp } from '../../src/lib/types'
+import type {
+  PuntoForecast,
+  PuntoMarine,
+  PuntoModelos,
+  DatosApp,
+} from '../../src/lib/types'
 
 export const DIA_BASE = '2026-08-10' // lunes
 
@@ -110,11 +115,43 @@ export function marineSintetico(): PuntoMarine[] {
   })
 }
 
+/**
+ * Viento por modelo, con la forma que devuelve Open-Meteo cuando se
+ * piden varios `models` (clave con el modelo pegado al nombre).
+ *
+ * Los tres modelos coinciden con el pronóstico principal salvo el
+ * MARTES (día 1), donde ICON se aparta a propósito: así hay un día con
+ * desacuerdo real y otro sin él, y el test puede distinguirlos.
+ * El último día ICON llega null, que es lo que hace de verdad.
+ */
+export function modelosSinteticos(): PuntoModelos[] {
+  const times = horasIso(8)
+  return PUNTOS.map((p) => {
+    const base = forecastSintetico().find(
+      (f) => f.latitude === p.lat && f.longitude === p.lon,
+    )!.hourly.wind_speed_10m
+    const hourly: Record<string, string[] | (number | null)[]> = { time: times }
+    for (const modelo of ['ecmwf_ifs025', 'gfs_seamless', 'icon_seamless']) {
+      hourly[`wind_speed_10m_${modelo}`] = times.map((_, i) => {
+        const dia = Math.floor(i / 24)
+        if (dia === 7 && modelo === 'icon_seamless') return null
+        const v = base[i]
+        if (v == null) return null
+        // ICON ve el martes mucho más calmado que los otros dos.
+        if (dia === 1 && modelo === 'icon_seamless') return v * 0.45
+        return v
+      })
+    }
+    return { latitude: p.lat, longitude: p.lon, hourly: hourly as PuntoModelos['hourly'] }
+  })
+}
+
 export function datosSinteticos(): DatosApp {
   return {
     fetchedAt: new Date(`${diaBase}T12:00:00-05:00`).toISOString(),
     forecast: forecastSintetico(),
     marine: marineSintetico(),
+    modelos: modelosSinteticos(),
     fallas: [],
   }
 }

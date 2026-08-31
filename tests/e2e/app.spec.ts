@@ -8,6 +8,7 @@ import {
   usarDiaBase,
   forecastSintetico,
   marineSintetico,
+  modelosSinteticos,
   datosSinteticos,
 } from '../fixtures/genera'
 
@@ -18,8 +19,16 @@ function hoyPanama(): string {
 
 async function mockApis(page: Page) {
   usarDiaBase(hoyPanama())
+  // Ojo: el pronóstico y el multimodelo salen del MISMO host. Se
+  // distinguen por `models=` en la query. Si se responde forecast a las
+  // dos, el multimodelo llega con la forma equivocada y el desacuerdo
+  // queda mudo sin que ningún test se entere.
   await page.route('**/api.open-meteo.com/**', (route) =>
-    route.fulfill({ json: forecastSintetico() }),
+    route.fulfill({
+      json: route.request().url().includes('models=')
+        ? modelosSinteticos()
+        : forecastSintetico(),
+    }),
   )
   await page.route('**/marine-api.open-meteo.com/**', (route) =>
     route.fulfill({ json: marineSintetico() }),
@@ -128,6 +137,66 @@ test.describe('La Fourno', () => {
     const ultima = filas.last()
     await ultima.locator('summary').click()
     await expect(ultima.locator('.desglose-lista .pts').first()).toHaveText(/^[+−]\d/)
+  })
+
+  test('avisa cuándo los modelos no coinciden, y solo en esos días', async ({
+    page,
+  }) => {
+    await mockApis(page)
+    await page.goto('/')
+    const seccion = page.locator('.seccion-dias')
+    await expect(seccion).toBeVisible({ timeout: 15_000 })
+    // Esperar DATOS, no el esqueleto: las filas existen vacías desde el
+    // primer render y contar antes da cero sin que nada esté roto.
+    await expect(seccion.locator('.badge-score strong').first()).toHaveText(/^\d+$/)
+
+    // El fixture hace que ICON vea el día 1 al 45 % del viento: ese día
+    // tiene que salir marcado. Si no sale ninguno, el multimodelo no
+    // está llegando (o la ruta lo respondió con la forma equivocada).
+    const dudosos = seccion.locator('.dia-dudoso')
+    await expect(dudosos.first()).toHaveText('Los modelos todavía no coinciden en este día.')
+    expect(await dudosos.count()).toBeGreaterThanOrEqual(1)
+
+    // Y NO puede salir en todos: un aviso que aparece siempre deja de
+    // querer decir algo. Ese era el criterio para elegir el umbral.
+    const total = await seccion.locator('.dia').count()
+    expect(await dudosos.count()).toBeLessThan(total)
+
+    // En un día dudoso no se afirma la forma del día. Si los modelos no
+    // coinciden ni en cómo viene el día entero, decir "está mejor
+    // temprano" es afinar sobre algo que todavía se mueve.
+    const dias = seccion.locator('.dia:has(.dia-dudoso)')
+    for (let i = 0; i < (await dias.count()); i++) {
+      await expect(dias.nth(i).locator('.dia-forma')).toHaveCount(0)
+    }
+    // Y el veredicto no puede afirmar lo que su propia tarjeta calla.
+    if (await page.locator('.veredicto-dudoso').count()) {
+      await expect(page.locator('.veredicto-forma')).toHaveCount(0)
+    }
+  })
+
+  test('sin el multimodelo la app sigue dando el pronóstico completo', async ({
+    page,
+  }) => {
+    // La tercera request es un extra. Si falla, se pierde el aviso de
+    // desacuerdo y NADA más: el veredicto y la semana siguen enteros.
+    usarDiaBase(hoyPanama())
+    await page.route('**/api.open-meteo.com/**', (route) =>
+      route.request().url().includes('models=')
+        ? route.abort()
+        : route.fulfill({ json: forecastSintetico() }),
+    )
+    await page.route('**/marine-api.open-meteo.com/**', (route) =>
+      route.fulfill({ json: marineSintetico() }),
+    )
+    await page.goto('/')
+    const seccion = page.locator('.seccion-dias')
+    await expect(seccion).toBeVisible({ timeout: 15_000 })
+    await expect(seccion.locator('.badge-score strong').first()).toHaveText(/^\d+$/)
+    expect(await seccion.locator('.dia').count()).toBeGreaterThanOrEqual(7)
+    expect(await seccion.locator('.dia-dudoso').count()).toBe(0)
+    // y sin inventar una falla al usuario: el multimodelo no es "el clima"
+    await expect(page.getByText(/No se pudo actualizar/)).toHaveCount(0)
   })
 
   test('el aviso fijo no tapa contenido, ni con el texto agrandado', async ({ page }) => {

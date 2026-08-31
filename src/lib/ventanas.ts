@@ -10,7 +10,14 @@
 import { PUNTOS, PUNTO_SALIDA, type Punto } from '../config/puntos'
 import { CALIBRACION } from '../config/calibracion'
 import type { DatosApp, PuntoForecast, PuntoMarine } from './types'
-import { scoreBloque, scorePlaya, type EntradaBloque, type ResultadoScore } from './score'
+import { MODELOS } from './api'
+import {
+  scoreBloque,
+  scorePlaya,
+  puntosViento,
+  type EntradaBloque,
+  type ResultadoScore,
+} from './score'
 import { serieMarea, nivelRelativo, tendenciaEn, type SerieMarea } from './tide'
 import { parsePanama } from './time'
 
@@ -95,6 +102,22 @@ export interface DiaJornada {
   parejo: boolean
   /** Si el día está mejor temprano, por la tarde, o parejo. */
   forma: FormaDia
+  /**
+   * true si la jornada ya arrancó (es hoy y pasaron las 9 am). Con el
+   * día empezado, `forma` deja de ser un consejo: decir "está mejor
+   * temprano" a las 2 pm es hablar de una mañana que ya pasó. El UI la
+   * calla en ese caso. La jornada ya TERMINADA no llega hasta acá:
+   * esos días se descartan al armar la semana.
+   */
+  enCurso: boolean
+  /**
+   * Cuánto se contradicen los modelos sobre este día, en puntos de
+   * viento del score. null si no se pudo medir (falló la request extra
+   * o no hay dos modelos con datos). Por encima de
+   * `calibracion.desacuerdoModelosPts` el UI avisa que el día no está
+   * firme todavía.
+   */
+  desacuerdo: number | null
   /** Amanece / se pone, del día. */
   sol: { sale: Date; sePone: Date } | null
 }
@@ -112,6 +135,53 @@ const UMBRAL_PAREJO = 3
  * razón para cambiar la hora de salida.
  */
 const UMBRAL_FORMA = 6
+
+/**
+ * Cuánto se contradicen los modelos globales sobre un día, medido en
+ * PUNTOS DE VIENTO del score (0..45), no en nudos.
+ *
+ * Por qué en puntos y no en nudos: la curva de viento no es recta. Un
+ * desacuerdo de 3 kt cuando todos rondan los 5 kt no cambia nada — el
+ * día es bueno igual. Los mismos 3 kt alrededor de 13 kt mueven el
+ * score de "se anda bien" a "incómodo". Lo que importa no es que los
+ * modelos difieran, sino que difieran lo suficiente para cambiar la
+ * respuesta.
+ *
+ * Devuelve null si no hay al menos dos modelos con datos (pasa en el
+ * último día: ICON llega más corto que ECMWF).
+ */
+function desacuerdoModelos(
+  datos: DatosApp,
+  inicio: Date,
+  horas: number,
+  destino: Punto,
+): number | null {
+  const ms = datos.modelos
+  if (!ms) return null
+  const iSalida = idx(PUNTO_SALIDA.id)
+  const iDestino = idx(destino.id)
+  const puntos = [ms[iSalida], ms[iDestino]].filter(Boolean)
+  if (puntos.length === 0) return null
+
+  const porModelo: number[] = []
+  for (const modelo of MODELOS) {
+    const clave = `wind_speed_10m_${modelo}`
+    // Mismo corredor y mismo resumen que usa el score de verdad.
+    const serie = serieCorredor(
+      puntos.map((p) => ({
+        times: p.hourly.time as string[],
+        valores: (p.hourly[clave] ?? []) as (number | null)[],
+      })),
+      inicio,
+      horas,
+    )
+    if (serie.length === 0) continue
+    const v = tipico(meanNum(serie), maxNum(serie))
+    if (v != null) porModelo.push(puntosViento(v))
+  }
+  if (porModelo.length < 2) return null
+  return Math.max(...porModelo) - Math.min(...porModelo)
+}
 
 /** Primera hora con tormenta dentro de la jornada. */
 function primeraTormenta(f: PuntoForecast, inicio: Date, horas: number): Date | null {
@@ -303,6 +373,8 @@ export function jornadasSemana(datos: DatosApp): DiaJornada[] {
         mareas.get(mejor.punto.id) ?? null,
         llegada,
       ),
+      enCurso: inicio <= ahora,
+      desacuerdo: desacuerdoModelos(datos, inicio, horas, mejor.punto),
       sol: {
         sale: parsePanama(f0.daily.sunrise[d]),
         sePone: parsePanama(f0.daily.sunset[d]),
