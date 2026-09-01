@@ -135,19 +135,9 @@ export interface DiaJornada {
   sol: { sale: Date; sePone: Date } | null
 }
 
-/**
- * Diferencia de score por debajo de la cual los destinos se consideran
- * empatados: el pronóstico no distingue tan fino entre islas vecinas y
- * vender un "ganador" sería ruido.
- */
-const UMBRAL_PAREJO = 3
-
-/**
- * Diferencia entre la mañana y la tarde por debajo de la cual el día
- * se declara parejo. Más chico que esto es ruido del modelo, no una
- * razón para cambiar la hora de salida.
- */
-const UMBRAL_FORMA = 6
+// Los umbrales de "parejo" y de "forma del día" viven en
+// calibracion.ts: cambian lo que se lee en pantalla, así que van en la
+// superficie del producto y no escondidos acá.
 
 /**
  * Cuánto se contradicen los modelos globales sobre un día, medido en
@@ -422,7 +412,7 @@ export function jornadasSemana(datos: DatosApp): DiaJornada[] {
       score: mejor.score,
       mejorDestino: mejor.punto,
       destinos: scored.map(({ punto, score }) => ({ punto, score })),
-      parejo: dispersion <= UMBRAL_PAREJO,
+      parejo: dispersion <= CALIBRACION.umbralParejo,
       forma: formaDelDia(
         datos,
         inicio,
@@ -467,7 +457,7 @@ function formaDelDia(
     ).total
   const manana = trozo(inicio, mitad)
   const tarde = trozo(new Date(inicio.getTime() + mitad * 3600_000), horas - mitad)
-  if (Math.abs(manana - tarde) < UMBRAL_FORMA) return 'parejo'
+  if (Math.abs(manana - tarde) < CALIBRACION.umbralForma) return 'parejo'
   return manana > tarde ? 'temprano' : 'tarde'
 }
 

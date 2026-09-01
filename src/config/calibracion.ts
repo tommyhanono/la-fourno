@@ -325,6 +325,31 @@ export const CALIBRACION = {
   skillHorizonteDias: { seca: 7, lluviosa: 5 },
 
   /**
+   * Diferencia de score por debajo de la cual los destinos del día se
+   * consideran EMPATADOS y la app dice "parejo en todos los puntos" en
+   * vez de vender un ganador.
+   *
+   * Vivía escondida en ventanas.ts. Se movió acá el 1-sep-2026 porque
+   * cambia lo que se lee en pantalla, y este archivo es la superficie
+   * del producto: lo que decide el comportamiento se edita en un solo
+   * lugar. Sin validar contra realidad.
+   */
+  umbralParejo: 3,
+
+  /**
+   * Diferencia entre la mañana y la tarde por debajo de la cual el día
+   * se declara parejo y no se sugiere hora. Más chico que esto es ruido
+   * del modelo, no una razón para cambiar la hora de salida.
+   *
+   * Está haciendo su trabajo: medido el 1-sep-2026, con este umbral los
+   * tres modelos coinciden en la forma del día en 6 de 8 días, y los 2
+   * que fallan son exactamente los que ya salen marcados por
+   * desacuerdo. Bajarlo haría que la app afirme formas que los modelos
+   * no sostienen.
+   */
+  umbralForma: 6,
+
+  /**
    * Meses de temporada seca en Panamá (1 = enero). Se usa solo para
    * elegir el horizonte de skill. Mayo y noviembre son de transición y
    * quedan del lado LLUVIOSO a propósito: ante la duda, el valor

@@ -107,6 +107,21 @@ por defecto) y `pesoPico`, que decide si el score del día mira lo
 típico o el peor momento (0.5 = mezcla). Si cambias tu horario de
 salida, cambia solo ese bloque.
 
+## Verdad de campo
+
+La app pregunta —en una fila, dos toques, sin insistir— cómo salió el
+viaje, y guarda al lado **el pronóstico que había emitido para ese día**.
+Además archiva cada día su propio pronóstico, salgas o no.
+
+Eso es lo que permitirá, en unos meses, calibrar el score contra la
+realidad en vez de contra el criterio. Hoy ningún número de
+`calibracion.ts` se ha confrontado nunca con cómo salió un viaje: tres
+perillas están marcadas en el código como **críticas y sin validar**.
+
+Va a `fourno_registros` y `fourno_pronosticos` en el Supabase
+compartido. **Sin las variables de entorno la app funciona igual**:
+guarda en el teléfono y no sincroniza (ver `env.example`).
+
 ## Instalar el PWA en iPhone
 
 1. Abre https://la-fourno.vercel.app en **Safari**.

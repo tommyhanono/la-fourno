@@ -85,12 +85,36 @@ críticas están marcadas como "sin validar" y no se afinan a ojo.
 4. Responder la pregunta de fondo: *cuando la app dijo 70+, ¿el viaje
    estuvo bueno?*
 
-**Cómo leer los datos después:** las dos tablas están en el Supabase
-compartido (proyecto tres-leches). `fourno_registros` trae la respuesta
-con el pronóstico congelado al lado, en `pronostico`; `fourno_pronosticos`
-trae el archivo diario con `dia` y `emitido_el`, cuya diferencia es la
-anticipación. Con eso se puede medir error real por horizonte sin
-depender de que se haya acordado de contestar.
+**Cómo leer los datos después.** Las dos tablas están en el Supabase
+compartido (proyecto tres-leches), y **no se leen con la anon key**: la
+RLS las cierra y solo los RPC de escritura entran. Para analizarlas se
+consulta con el MCP de Supabase o desde el panel.
+
+```sql
+-- ¿Acertó el score? Cada respuesta con lo que la app había dicho.
+select r.dia, r.resultado, r.viento_real_kt, r.nota,
+       (r.pronostico->>'score')::int        as score_dicho,
+       (r.pronostico->>'vientoMaxKt')::real as viento_dicho,
+       r.pronostico->'entrada'              as insumos
+from public.fourno_registros r
+order by r.dia desc;
+```
+
+La clave está en `pronostico->'entrada'`: son **los insumos crudos** con
+los que se calculó el score ese día. Con eso se puede volver a correr
+`scoreBloque` con otras perillas sobre los días reales y preguntarse
+*"¿con `pesoPico` en 0.35 habría acertado?"*. Sin la entrada solo se
+sabría que la app dijo 72 y que el viaje estuvo peor, que no alcanza
+para mover nada. Hay un test que verifica que el score archivado es
+reproducible desde su entrada.
+
+`fourno_pronosticos` trae el archivo diario con `dia` y `emitido_el`:
+la diferencia es la anticipación, así que sirve para medir error real
+por horizonte **salga o no salga a navegar**.
+
+Con ~15-20 respuestas ya se puede empezar. El orden sugerido: primero
+`pesoPico` (la más sensible), después `rachaDeltaKt` y
+`marea.bajaExtremaFrac`.
 
 **Ojo con el token.** `VITE_FOURNO_TOKEN` viaja en el bundle: cualquiera
 que abra la app lo puede leer. No es un secreto, es una molestia para el
