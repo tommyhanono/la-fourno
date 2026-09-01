@@ -30,3 +30,31 @@ export function cieloDeCodigo(code: number | null | undefined): Cielo {
     return { texto: 'tormenta con granizo', icono: 'tormenta' }
   return { texto: 'variable', icono: 'sol-nube' }
 }
+
+/**
+ * Cómo se describe el cielo de un DÍA entero.
+ *
+ * La nubosidad que entra es el PROMEDIO de la jornada y la lluvia es el
+ * MÁXIMO — las dos cosas correctas, pero juntas sin matiz se
+ * contradicen: la semana del 1-sep-2026 la app llegó a mostrar
+ * "despejado · lluvia 69 %", que es justo lo que no hay que decirle a
+ * alguien decidiendo si sale.
+ *
+ * No es un error de dato: en temporada lluviosa el patrón real ES sol
+ * de mañana y chubasco de tarde, y el promedio de nubes queda bajo. La
+ * app tiene que llamarlo por su nombre en vez de dejar dos hechos
+ * peleándose en la misma línea.
+ */
+export function textoCieloDia(
+  nubesMedia: number | null,
+  probLluviaMax: number | null,
+): string {
+  if (nubesMedia == null) return '—'
+  const base = nubesMedia <= 25 ? 'despejado' : nubesMedia <= 50 ? 'sol parcial' : 'nublado'
+  // Cielo abierto en promedio pero con lluvia más probable que no:
+  // el día no es "despejado", es de sol y chubascos.
+  if (nubesMedia <= 50 && probLluviaMax != null && probLluviaMax > 50) {
+    return 'sol y chubascos'
+  }
+  return base
+}

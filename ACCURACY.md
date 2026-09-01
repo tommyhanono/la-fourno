@@ -375,6 +375,24 @@ marca casi todo o casi nada, hay que remedirlo.
 
 ---
 
+### CERRADO — El copy se contradecía a sí mismo
+
+Encontrado mirando la pantalla, no los tests: la vista de punto mostraba
+**"despejado · lluvia 69 %"**. Los dos datos ciertos —la nubosidad es el
+PROMEDIO de la jornada y la lluvia el MÁXIMO— pero juntos sin matiz se
+desmienten, y es justo lo que no hay que decirle a alguien decidiendo si
+sale al mar.
+
+No era un error de dato: en temporada lluviosa el patrón real ES sol de
+mañana y chubasco de tarde, y el promedio de nubes queda bajo. Ahora la
+app lo llama por su nombre: con cielo abierto en promedio y lluvia más
+probable que no, dice **"sol y chubascos"**. Un solo helper compartido
+para que el home y la vista de punto digan lo mismo, con un test que
+recorre las 441 combinaciones y verifica que si dice "despejado" la
+lluvia nunca es probable.
+
+---
+
 ### CERRADO — Guard de datos parciales
 
 `ResultadoScore` ahora trae `faltan[]` y `pesoFaltante`, no solo un
@@ -485,7 +503,7 @@ antes.
 ```
 npm run typecheck     # incluye los tests (tsc solo miraba src hasta ago-2026)
 npm run lint
-npm test              # 105 unit
+npm test              # 123 unit
 npm run test:e2e      # 19 E2E
 node scripts/audita-layout.mjs      # requiere preview en :4330
 node scripts/audita-contraste.mjs   # requiere preview en :4339

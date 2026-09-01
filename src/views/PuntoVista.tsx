@@ -12,7 +12,7 @@ import { CurvaMarea } from '../components/CurvaMarea'
 import { Timeline } from '../components/Timeline'
 import { BadgeScore, Desglose } from '../components/Desglose'
 import { Icono } from '../components/Icono'
-import { cieloDeCodigo } from '../lib/wmo'
+import { cieloDeCodigo, textoCieloDia } from '../lib/wmo'
 import { serieMarea, nivelEn, tendenciaEn } from '../lib/tide'
 import { diasPlaya } from '../lib/ventanas'
 import {
@@ -349,13 +349,7 @@ function SemanaNav({ f, m, unidades }: { f: F; m: M; unidades: Unidades }) {
               <Icono nombre="ola" size={18} /> {fmtOla(d.olaMax, unidades)}
             </span>
             <span className="semana-cielo">
-              {d.nubesMedia == null
-                ? '—'
-                : d.nubesMedia <= 25
-                  ? 'despejado'
-                  : d.nubesMedia <= 50
-                    ? 'sol parcial'
-                    : 'nublado'}
+              {textoCieloDia(d.nubesMedia, d.probMax)}
               {d.probMax != null && d.probMax > 30
                 ? ` · lluvia ${Math.round(d.probMax)} %`
                 : ''}

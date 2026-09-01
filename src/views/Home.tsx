@@ -19,7 +19,7 @@ import { nombreDia, horaCorta, horaMuyCorta, parsePanama } from '../lib/time'
 import { Header, AvisoSeguridad } from '../components/Marco'
 import { BadgeScore, Desglose } from '../components/Desglose'
 import { Icono } from '../components/Icono'
-import { cieloDeCodigo } from '../lib/wmo'
+import { cieloDeCodigo, textoCieloDia } from '../lib/wmo'
 import { FilaVerdad } from '../components/FilaVerdad'
 import { archivarSemana, subirArchivo, diaAPreguntar, sincronizar } from '../lib/verdad'
 
@@ -181,7 +181,8 @@ function Veredicto({ dia, unidades }: { dia: DiaJornada; unidades: Unidades }) {
       </p>
       <p className="veredicto-cond">
         Viento {rangoViento(dia.rango, unidades)} · ola{' '}
-        {rangoOla(dia.rango, unidades)} · {textoCielo(dia.entrada.nubosidadPct).toLowerCase()}
+        {rangoOla(dia.rango, unidades)} ·{' '}
+        {textoCielo(dia.entrada.nubosidadPct, dia.entrada.probLluviaPct).toLowerCase()}
       </p>
       {/* Misma regla que la tarjeta, sin excepciones: el veredicto no
           puede afirmar algo que la tarjeta de abajo se calla. */}
@@ -234,7 +235,7 @@ function TarjetaDia({
         </div>
         <div>
           <dt>Cielo</dt>
-          <dd>{textoCielo(d.entrada.nubosidadPct)}</dd>
+          <dd>{textoCielo(d.entrada.nubosidadPct, d.entrada.probLluviaPct)}</dd>
         </div>
         <div>
           <dt>Lluvia</dt>
@@ -374,9 +375,10 @@ function rangoOla(r: RangoDia, u: Unidades): string {
   return `${conv(r.olaMin).toFixed(1)}–${fmtOla(r.olaMax, u)}`
 }
 
-function textoCielo(nubes: number | null): string {
-  if (nubes == null) return '—'
-  return nubes <= 25 ? 'Despejado' : nubes <= 50 ? 'Sol parcial' : 'Nublado'
+/** Primera letra en mayúscula: el helper compartido devuelve minúscula. */
+function textoCielo(nubes: number | null, probLluvia: number | null = null): string {
+  const t = textoCieloDia(nubes, probLluvia)
+  return t === '—' ? t : t[0].toUpperCase() + t.slice(1)
 }
 
 function CargandoOFallo({ estado }: { estado: EstadoDatos }) {
