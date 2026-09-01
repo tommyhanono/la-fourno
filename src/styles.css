@@ -273,6 +273,11 @@ summary:focus-visible {
 .nivel-ok { color: var(--color-ok); }
 .nivel-warn { color: var(--color-warn); }
 .nivel-danger { color: var(--color-danger); }
+/* Falta de dato NO es una mala condición: va en gris, nunca en rojo.
+   El rojo está reservado para "no salgas". */
+.nivel-sindato { color: var(--color-text-muted); }
+.veredicto .nivel-sindato { color: oklch(0.72 0.02 265); }
+
 .veredicto .nivel-ok { color: oklch(0.82 0.14 150); }
 .veredicto .nivel-warn { color: oklch(0.8 0.13 75); }
 .veredicto .nivel-danger { color: oklch(0.75 0.16 25); }
@@ -754,4 +759,84 @@ summary:focus-visible {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---------- verdad de campo ---------- */
+/* Una fila, no una sección: tiene que leerse como una pregunta al
+   pasar, no como contenido que compite con el veredicto. Por eso va
+   sobre papel y no sobre superficie elevada. */
+.verdad {
+  margin: var(--space-5) 0;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-brutal);
+  background: var(--color-surface-2);
+}
+
+.verdad-pregunta {
+  font-weight: 700;
+  margin-bottom: var(--space-3);
+}
+
+.verdad-botones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.btn-verdad {
+  flex: 1 1 auto;
+  min-width: 5.5rem;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: var(--border-brutal);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.btn-verdad:active { transform: translate(1px, 1px); }
+
+/* El botón principal va INVERTIDO, no sobre el acento.
+   Se intentó primero con el acento de fondo y el auditor de contraste
+   lo tumbó: 3.88:1 contra el 4.5 que pide AA. Es justo la regla del
+   sistema —el texto nunca va sobre el acento— y el tratamiento correcto
+   es el mismo del veredicto: tinta oscura de fondo, papel encima. */
+.btn-verdad.primario {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+.verdad-extra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.verdad-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 7rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.verdad-campo.ancho { flex: 2 1 11rem; }
+
+.verdad-campo input {
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 2px solid var(--color-text);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-verdad { transition: none; }
+  .btn-verdad:active { transform: none; }
 }

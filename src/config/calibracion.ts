@@ -51,6 +51,16 @@ export const CALIBRACION = {
      * mataría TODOS los días y no podrías comparar). Se usa
      * promedio y pico mezclados: 0 = solo el promedio del día,
      * 1 = solo el peor momento. 0.5 = lo típico, ponderado al pico.
+     *
+     * ES LA PERILLA MÁS SENSIBLE DE TODAS, y NO está validada. Medido
+     * el 1-sep-2026 sobre 180 días reales: pasarla a 0 cambia el mejor
+     * día en 7 de 25 semanas y la etiqueta de 34 días; pasarla a 1
+     * cambia 3 semanas y 42 etiquetas. Mueve más que cualquier peso.
+     *
+     * El 0.5 salió del criterio de Tommy, no de una medición: nadie ha
+     * comprobado si un día que promedia 8 kt con pico de 14 se siente
+     * como 11. Es lo primero que hay que confirmar cuando haya verdad de
+     * campo (P1 en ACCURACY.md). No moverla a ojo.
      */
     pesoPico: 0.5,
   },
@@ -82,6 +92,11 @@ export const CALIBRACION = {
     ] as AnclajeKt[],
     // Si la ráfaga supera al sostenido por más de este delta, resta puntos:
     // viento parejo se maneja, viento a golpes cansa y sorprende.
+    //
+    // `rachaDeltaKt` es crítica y NO está validada: bajarla a 5 cambia
+    // el mejor día en 6 de 25 semanas y la etiqueta de 35 de 180 días
+    // (medido 1-sep-2026). El tamaño del castigo importa bastante menos
+    // que el umbral: quitar `rachaPenal` entero mueve 2 semanas.
     rachaDeltaKt: 7,
     rachaPenal: 8,
   },
@@ -110,17 +125,45 @@ export const CALIBRACION = {
       { m: 1.8, frac: 0.1 },
       { m: 2.5, frac: 0 },
     ] as AnclajeM[],
-    // Período largo = mar viejo, cómodo. Bono si el período medio del
-    // mar total llega a este valor. Como ese período está ponderado por
-    // energía, pedir ≥12 s ya implica swell limpio sin chop encima.
-    periodoLargoS: 12,
-    periodoLargoBono: 3,
+    // ELIMINADO el 1-sep-2026: el bono de "mar viejo, período largo"
+    // (periodoLargoS 12 s → +3 pts). Se midió sobre 180 días reales del
+    // corredor, 90 de seca y 90 de lluviosa: quitarlo cambia el score
+    // 0.03 pts en promedio, no mueve NINGUNA de las 25 semanas y no
+    // cambia NI UNA de las 180 etiquetas que ve el usuario.
+    //
+    // Por qué estaba muerto: `periodoS` es el período MÍNIMO de toda la
+    // jornada, y pedir que el mínimo llegue a 12 s pasa en 2 de 90 días
+    // por temporada. La regla estricta era deliberada —premiar solo si
+    // el mar está largo TODO el día— pero termina no premiando nunca.
+    //
+    // Si alguna vez se quiere volver a premiar el mar cómodo, el
+    // problema no es el tamaño del bono: es que habría que mirar el
+    // período típico y no el mínimo. Detalle en ACCURACY.md.
   },
 
   marea: {
     // La marea pesa poco en el score (el CCX 40 entra a casi todo),
     // pero una bajamar extrema complica playas y bajos en Las Perlas.
     // Nivel relativo al rango del día: 0 = bajamar plena, 1 = pleamar.
+    //
+    // SE QUEDA, y no por inercia: medido el 1-sep-2026 sobre 180 días
+    // reales, quitar el término entero mueve el score 5.81 pts en
+    // promedio, cambia el día ganador en 4 de 25 semanas y cambia la
+    // etiqueta de 52 de los 180 días. Es el tercer término que más pesa.
+    //
+    // AHORA, LOS VALORES DE ABAJO NO ESTÁN VALIDADOS. Que el término
+    // importe no quiere decir que 0.15, 6, 3 y 2 sean los números
+    // correctos: salieron del criterio de Tommy, no de una medición.
+    // `bajaExtremaFrac` es la más sensible de las cuatro —moverla a 0.30
+    // cambia el mejor día de la semana en 5 de 25 y cambia el top-1
+    // absoluto— así que es la primera que habría que confirmar cuando
+    // haya verdad de campo (P1 en ACCURACY.md). Hasta entonces: no
+    // afinarlas a ojo.
+    //
+    // Nota de forma: este término reparte por CAJONES (0.3 / 0.6 / 0.8
+    // del peso) mientras viento, sol y ola usan curvas interpoladas. Es
+    // una inconsistencia consciente: convertirlo en curva sería inventar
+    // valores intermedios sin nada que los respalde.
     bajaExtremaFrac: 0.15, // por debajo de esto en destino → penal
     bajaExtremaPenal: 6,
     vaciandoPenal: 3, // llegando con marea vaciando: pequeña resta

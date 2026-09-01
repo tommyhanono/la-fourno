@@ -24,6 +24,13 @@ Condiciones + recomendador. Nada más, a propósito.
   hay, **el mejor destino según el clima de ese día**, y si conviene
   temprano o por la tarde (en palabras, no en puntaje). Si todos los
   puntos quedan iguales, lo dice en vez de inventar un ganador.
+- **Dice cuándo NO confiar en el número.** Si los tres modelos globales
+  se contradicen lo suficiente como para cambiar la respuesta, lo avisa.
+  Y del día 6 en adelante avisa que el pronóstico ya no le gana al
+  promedio de la época — medido, no supuesto.
+- **Pregunta cómo salió.** Una fila, dos toques, nunca insiste: sirve
+  para poder calibrar el score contra la realidad en vez de contra el
+  criterio. Y archiva cada día su propio pronóstico, salgas o no.
 - **9 puntos precargados**: Marina Ocean Reef, Contadora, Chapera,
   Islas Ocean Reef, Pearl Island, Mogo Mogo, Caracoles + las playas
   Santa Clara (Las Sirenas) y Coronado con su "score de día de playa".
@@ -42,24 +49,38 @@ Condiciones + recomendador. Nada más, a propósito.
 | Oleaje (altura, período, dirección) | [Open-Meteo Marine](https://open-meteo.com) |
 | **Marea** | Open-Meteo Marine `sea_level_height_msl` (modelo Copernicus/CMEMS) |
 
-**La marea es SIEMPRE un estimado** y el UI lo dice: no hay fuente
-armónica gratuita con API para Balboa (NOAA ya no la publica).
+**La marea es SIEMPRE un estimado** y el UI lo dice: el nivel sale de un
+modelo, no de un mareógrafo.
 
-Lo que sí está comprobado es que la serie se comporta como una marea
+*(Corrección del 1-sep-2026: acá decía que NOAA ya no publicaba Balboa.
+Sí la publica — estación **9812501**, predicciones armónicas en datum
+MSL, dominio público. Es la que se usó para validar y corregir la
+marea. Lo que no hay es un mareógrafo en Las Perlas.)*
+
+Lo que está comprobado es que la serie se comporta como una marea
 real del Golfo: 15 pleamares y 15 bajamares en 8 días, pleamar→pleamar
 cada 12.48 h contra 12.42 h teóricos de la componente M2, y el ciclo de
 sicigia a cuadratura en su sitio (el rango cae de 4.52 m a 2.70 m en
 seis días y vuelve a crecer). Sirve para decidir el día, **no** para
 entrar a un bajo con la quilla justa.
 
-Contra una tabla externa de Balboa (tide-forecast.com, comercial) el
-rango dio casi idéntico —3.23 m modelo vs 3.18 m tabla— con ~30 min de
-desfase. Pero eso son **dos extremos de un día**: sirve para descartar
-que el modelo esté muy corrido, no para prometer media hora de
-precisión siempre. El contraste contra una fuente oficial panameña,
-sobre varias semanas, sigue pendiente. Detalle en
-[DECISIONES.md](DECISIONES.md) §13 y pendientes en
-[ACCURACY.md](ACCURACY.md).
+**Y venía adelantada media hora.** Contra las predicciones armónicas
+oficiales de NOAA para Balboa (estación 9812501, datum MSL), sobre
+**356 extremos** de junio a agosto de 2026, el modelo adelantaba los
+extremos **27.0 min de media**, con los 356 del mismo signo. Se descartó
+que fuera geografía: el mismo sesgo aparece en Puntarenas (−33.7 min),
+Ecuador (−33.3) y Galápagos (−29.9, océano abierto a 1900 km). Está
+corregido, y el error típico del instante de pleamar/bajamar bajó de
+**27.0 a 3.6 min** (p90 10.5 min, peor caso de tres meses 23.5 min).
+
+Lo que **no** está corregido es el nivel: el modelo lee ~0.5 m por
+encima del MSL de NOAA y comprime el rango unos 0.27 m. Parte de eso es
+espacial y no se puede separar del datum sin más estaciones. El score
+usa nivel relativo, así que no lo afecta; los metros mostrados sí.
+
+Sigue sirviendo para decidir el día, **no** para entrar a un bajo con la
+quilla justa. Detalle en [DECISIONES.md](DECISIONES.md) §13-14 y
+pendientes en [ACCURACY.md](ACCURACY.md).
 
 Los datos se cachean 30 min en el teléfono; si la red falla, la app
 muestra lo último que llegó y lo dice — la hora del dato siempre está
@@ -102,6 +123,16 @@ npm run build      # build a dist/
 npm test           # unit (Vitest)
 npm run test:e2e   # E2E (Playwright)
 npm run lint       # oxlint
+npm run typecheck  # tsc, incluyendo los tests
+
+# ¿El pronóstico tiene skill o solo es consistente consigo mismo?
+node scripts/medir-skill.mjs
+
+# ¿La calibración sirve igual en seca que en lluviosa?
+node scripts/medir-estaciones.mjs
+
+# ¿La marea llega a tiempo? (contra NOAA, varias estaciones)
+node scripts/medir-marea.mjs
 
 # Auditoría de layout: solapamientos, desbordes y scroll horizontal en
 # 6 escenarios (320 px, 375 px, desgloses abiertos, texto 130 % y 200 %,
@@ -124,7 +155,8 @@ está fijo en todas las pantallas y no se puede quitar, a propósito.
 
 ## Ideas futuras (fuera de alcance, a propósito)
 
-- **WorldTides API** (~$5/mes): extremos de marea armónicos reales por
-  coordenada — el único upgrade pagado que vale la pena.
+- **Marea armónica por coordenada.** Ya no hace falta pagar WorldTides
+  para Balboa: NOAA publica sus constantes gratis. Lo que faltaría es
+  Las Perlas, donde no hay estación.
 - Rosa de viento por hora, radar de lluvia, alertas push, tráfico AIS.
 - Más corredores (p. ej. Ocean Reef → Taboga).

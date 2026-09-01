@@ -2,9 +2,17 @@
 // "viento 8 kt: +25 · despejado: +20 · …" — nada de caja negra.
 
 import type { ResultadoScore } from '../lib/score'
-import { nivelScore } from '../lib/score'
+import { nivelScore, faltaDatoCritico } from '../lib/score'
 
 export function BadgeScore({ score }: { score: ResultadoScore }) {
+  if (faltaDatoCritico(score)) {
+    return (
+      <span className="badge-score nivel-sindato">
+        <strong aria-hidden="true">—</strong>
+        <span className="badge-etiqueta">Sin dato</span>
+      </span>
+    )
+  }
   const nivel = nivelScore(score.total)
   return (
     <span className={`badge-score nivel-${nivel.clase}`}>
@@ -14,10 +22,19 @@ export function BadgeScore({ score }: { score: ResultadoScore }) {
   )
 }
 
+/** "viento", "ola y marea", "viento, ola y marea" */
+function listar(xs: string[]): string {
+  if (xs.length === 0) return 'un dato'
+  if (xs.length === 1) return xs[0]
+  return `${xs.slice(0, -1).join(', ')} y ${xs[xs.length - 1]}`
+}
+
 export function Desglose({ score, id }: { score: ResultadoScore; id: string }) {
   return (
     <details className="desglose">
-      <summary>¿Por qué {score.total}?</summary>
+      <summary>
+        {faltaDatoCritico(score) ? '¿Por qué sin dato?' : `¿Por qué ${score.total}?`}
+      </summary>
       <ul id={id} className="desglose-lista">
         {score.contribuciones.map((c, i) => (
           <li
@@ -45,7 +62,12 @@ export function Desglose({ score, id }: { score: ResultadoScore; id: string }) {
         ))}
         {score.parcial && (
           <li className="nota-parcial">
-            Faltó algún dato de la API: score parcial con lo disponible.
+            {/* Decir QUÉ faltó, no solo que faltó algo: no es lo mismo
+                quedarse sin marea que sin viento. */}
+            No llegó {listar(score.faltan)} de la API
+            {faltaDatoCritico(score)
+              ? ': sin eso no se puede puntuar el día.'
+              : `: el puntaje va sobre ${100 - score.pesoFaltante} y no sobre 100.`}
           </li>
         )}
       </ul>

@@ -10,16 +10,28 @@ de Open-Meteo (modelo global de Copernicus/CMEMS), con los extremos
 afinados por interpolación parabólica. El UI la marca **siempre** como
 "estimada".
 
+> ⚠️ **CORREGIDO el 1-sep-2026.** Lo de abajo dice que NOAA ya no
+> publica Balboa. **Es falso**: la estación **9812501 "BALBOA, CANAL
+> ZONE (PACIFIC)"** responde perfectamente y sirve predicciones
+> armónicas en datum MSL para cualquier rango de fechas. Se usó para
+> validar la marea con n=356 y para corregir un adelanto de 27 min que
+> el modelo traía. Ver §14.4. La decisión de fondo NO cambia —el nivel
+> se sigue tomando de CMEMS, porque NOAA solo cubre Balboa y no Las
+> Perlas— pero la razón que se daba estaba equivocada.
+
 **Por qué**:
-- NOAA CO-OPS ya no publica predicciones para Balboa (la estación
-  histórica no responde en su API; solo quedan estaciones de EE. UU.).
+- ~~NOAA CO-OPS ya no publica predicciones para Balboa~~ (ver la
+  corrección de arriba: sí la publica). Lo cierto es que **no hay
+  estación en Las Perlas**, que es a donde va, así que igual hace falta
+  un modelo para el destino.
 - No existe otra fuente armónica gratuita y confiable con API para el
   Golfo de Panamá; las tablas comerciales (tide-forecast, tides4fishing)
   no tienen API gratuita y su scraping es frágil.
-- **Validación hecha el 2026-08-09** contra la tabla armónica de Balboa
-  de tide-forecast.com: mismo ciclo semidiurno, rango del ciclo casi
-  idéntico (3.23 m modelo vs 3.18 m tabla) y extremos con **desfase
-  ~30 min** (bajamar 5:25 vs 6:01 am; pleamar ~11:45 vs 12:17 pm).
+- **Validación del 2026-08-09** contra tide-forecast.com (comercial):
+  mismo ciclo semidiurno, rango casi idéntico (3.23 m modelo vs 3.18 m
+  tabla) y **desfase ~30 min** en dos extremos de un día. Ese desfase
+  resultó ser real y sistemático: n=356 contra NOAA lo confirmó en
+  −27 min y ya está corregido (§14.4).
 - Para decidir "¿salgo o no?" ese error es aceptable; para entrar a un
   bajo con la quilla justa NO — por eso el "estimado" es permanente y
   el aviso de seguridad manda a las fuentes oficiales.
@@ -28,8 +40,9 @@ afinados por interpolación parabólica. El UI la marca **siempre** como
 no al datum de cartas (MLLW): se ven valores negativos en bajamar. Es
 coherente para leer curva y tendencia, que es lo que la app necesita.
 
-**Upgrade pagable** (README): WorldTides API (~$5/mes) da extremos
-armónicos reales por coordenada.
+**Upgrade pagable**: WorldTides API (~$5/mes) daría extremos armónicos
+por coordenada. Bajó de prioridad: para Balboa ya se tiene NOAA gratis,
+y lo que falta es Las Perlas, donde no hay mareógrafo de nadie.
 
 ## 2. Caracoles: islotes al NE de Contadora (estimado declarado)
 
@@ -427,3 +440,123 @@ un "atmósfera muy cargada".
 `DatosApp` pasaba sin ruido, y el camino nuevo quedaba sin probar. Un
 fixture que miente sobre la forma de los datos es peor que no tener test:
 da confianza falsa. Se agregó `tsconfig.test.json` y `npm run typecheck`.
+
+## 14. Misión de exactitud (2026-09-01)
+
+Sesión larga dedicada a una sola cosa: que el score prediga bien la
+realidad. Cero features salvo la verdad de campo. Regla de trabajo:
+medir antes de implementar, y botar lo implementado si el dato no lo
+respalda.
+
+### 14.1 El pronóstico tiene skill, pero se acaba en el día 5
+
+La medición del 31-ago decía que el error no crecía con el horizonte.
+**Era falsa**: metía horas futuras dentro de la "verdad" y tenía n=240.
+Rehecha con verdad ERA5 limpia, n≈600 por horizonte y dos baselines
+tontos:
+
+- El error **sí crece**: MAE 2.38 kt a 1 día → 3.48 a 7 (+46 %).
+- Le gana a **persistencia** en 7/7 horizontes.
+- Le gana a **climatología** en los días 1-5 (diferencia pareada
+  concluyente a 2 EE), y **empata** en los días 6-7 (+0.049 ±0.081 y
+  +0.146 ±0.085).
+
+O sea: del día 6 en adelante no aporta nada sobre "así viene esta época
+del año". Los días se siguen mostrando —fue un pedido explícito— pero la
+app lo dice y deja de afirmar la forma del día. Perilla
+`skillHorizonteDias: 5`.
+
+Se verificó también que la "verdad" de previous-runs-api es
+idénticamente ERA5 (MAE 0.00 kt sobre 1944 h): no era el modelo
+comparándose consigo mismo, pero es un reanálisis, no una boya.
+
+### 14.2 La calibración no necesita ser estacional
+
+451 días de seca y 460 de lluviosa (ERA5 2021-2025). La seca es más
+ventosa (10.7 vs 7.5 kt) y el score separa días en las dos (dispersión
+36.5 vs 29.2). Límite del método, que hay que tener presente: el archivo
+de ERA5 **no trae CAPE** y su weather_code nunca da tormenta, así que la
+cifra de lluviosa es un piso.
+
+### 14.3 Sombra de islas: medida y descartada
+
+Contadora, Chapera y Caracoles caen en la misma celda marina y devuelven
+el número idéntico. Entre celdas distintas, la razón de altura varía
+0.068 según el cuadrante del viento. Y en seca el viento viene del N/NO
+casi siempre. No hay señal direccional que usar: implementar una tabla
+de exposición a mano sería inventar. Bloqueado por verdad de campo.
+
+### 14.4 La marea venía adelantada 27 minutos
+
+El hallazgo más concreto de la sesión. Se encontró la estación **9812501
+de NOAA (Balboa, Pacífico)**, con predicciones armónicas oficiales en
+datum MSL —el mismo de CMEMS— para cualquier rango y en dominio público.
+Esto corrige de paso lo que el README venía diciendo: NOAA **sí** la
+publica.
+
+Contraste de n=2 a **n=356**: sesgo de **−27.0 min**, con los 356
+extremos del mismo signo (−40.6 a −3.5). Se descartó que fuera
+geografía comparando contra Puntarenas (−33.7), La Libertad (−33.3) y
+Galápagos (−29.9, océano abierto a 1900 km): es fase del modelo CMEMS.
+Los ~30 min sugieren una convención de etiquetado horario.
+
+Corregido con `marea.desfaseModeloMin: 27` sobre los tiempos de la
+serie, para que nivel, tendencia y extremos queden corridos igual. El
+error típico del instante baja de **27.0 a 3.6 min**. Queda como test de
+regresión permanente contra un fixture de 355 extremos oficiales.
+
+El sesgo de NIVEL (~+0.5 m, con el rango comprimido ~0.27 m) **no** se
+corrigió: parte es espacial y no se puede separar del datum sin más
+estaciones. No afecta al score, que usa nivel relativo.
+
+### 14.5 Perillas: una eliminada, tres declaradas críticas
+
+Análisis de sensibilidad sobre **180 días reales** (90 de cada
+temporada), moviendo cada perilla y midiendo si cambia el ranking o la
+etiqueta que ve el usuario.
+
+**Eliminado** el bono de "mar viejo": Δ0.03 pts, 0 de 25 semanas, 0 de
+180 etiquetas. Estaba muerto porque pedía que el período MÍNIMO de la
+jornada llegara a 12 s, y eso pasa 2 veces cada 90 días.
+
+**El término de marea se queda**, con respaldo: quitarlo mueve 5.81 pts,
+4 semanas y 52 etiquetas. Es el tercero que más pesa. Sus VALORES siguen
+sin validar.
+
+**Críticas y sin validar**: `pesoPico` (7/25 semanas), `rachaDeltaKt`
+(6/25) y `marea.bajaExtremaFrac` (5/25, cambia el top-1). Quedan
+marcadas en el código para que nadie las afine a ojo.
+
+Hay una guardia permanente contra perillas muertas. Las rayas de
+seguridad quedan fuera de ella a propósito: deben estar dormidas en días
+buenos, y eso también se prueba.
+
+### 14.6 Datos parciales: se acabó el número falso
+
+`ResultadoScore` ahora trae `faltan[]` y `pesoFaltante`. Un día
+incompleto ya no compite por el veredicto contra días completos —sin
+dato de mar perdía 25 puntos de arranque y perdía siempre por una razón
+que no era el clima— y sin viento o sin cielo no se muestra número: sale
+"Sin dato" en gris, nunca en rojo.
+
+### 14.7 Verdad de campo: la única forma de falsificar la calibración
+
+Se construyó la tubería, que es lo que faltaba. Una fila en el home
+—sin pantalla nueva, sin bitácora— y, sobre todo, **el archivo diario de
+pronósticos**: sin él el registro no serviría, porque el pronóstico se
+recalcula y el del sábado ya no existe cuando contesta el domingo.
+
+Guardado en `fourno_registros` y `fourno_pronosticos` del Supabase
+compartido, por RPC SECURITY DEFINER con token. localStorage manda; la
+nube es respaldo, pero necesario: si los datos vivieran solo en el
+teléfono, ninguna sesión futura podría leerlos para calibrar, que es el
+punto entero.
+
+Nota de seguridad: la primera versión del RPC comparaba el token contra
+`current_setting(..., true)`, que devuelve NULL si no está seteado —y
+`token <> NULL` es NULL, que en un IF de plpgsql no entra. O sea que sin
+token configurado **dejaba pasar todo**. Se detectó antes de usarlo y se
+reemplazó por una tabla de config cerrada con negación explícita.
+
+El token viaja en el bundle: no es un secreto, es una molestia para el
+que pase. Si aparece basura, se rota en `fourno_config` y en Vercel.

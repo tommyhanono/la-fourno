@@ -8,7 +8,7 @@
 // era justo lo que la volvía confusa. El detalle por hora vive en la
 // vista de cada punto ("Próximas horas").
 
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { PUNTOS } from '../config/puntos'
 import { CALIBRACION } from '../config/calibracion'
 import type { EstadoDatos } from '../state/hooks'
@@ -20,6 +20,8 @@ import { Header, AvisoSeguridad } from '../components/Marco'
 import { BadgeScore, Desglose } from '../components/Desglose'
 import { Icono } from '../components/Icono'
 import { cieloDeCodigo } from '../lib/wmo'
+import { FilaVerdad } from '../components/FilaVerdad'
+import { archivarSemana, subirArchivo, diaAPreguntar, sincronizar } from '../lib/verdad'
 
 const { desdeHora, hastaHora } = CALIBRACION.jornada
 
@@ -33,7 +35,34 @@ export function Home({ estado, unidades }: { estado: EstadoDatos; unidades: Unid
   const mejor = useMemo(() => {
     const salibles = semana.filter((d) => !d.score.peligro)
     if (salibles.length === 0) return null
-    return salibles.reduce((a, b) => (b.score.total > a.score.total ? b : a))
+    // Un día al que le faltan datos NO compite contra días completos:
+    // sin el dato de mar pierde 25 puntos de arranque (ola 15 + marea
+    // 10), así que perdería siempre por una razón que no tiene nada que
+    // ver con el clima. Si hay días completos, el veredicto sale de
+    // ellos; si NINGUNO está completo, se compara entre parciales, que
+    // al menos están todos igual de mancos.
+    const completos = salibles.filter((d) => d.score.pesoFaltante === 0)
+    const candidatos = completos.length > 0 ? completos : salibles
+    return candidatos.reduce((a, b) => (b.score.total > a.score.total ? b : a))
+  }, [semana])
+
+  // Qué día toca preguntar. Es estado y no memo a propósito: después de
+  // contestar hay que volver a preguntárselo a localStorage, y un memo
+  // con una dependencia falsa para forzarlo es justo el olor que el
+  // linter marca.
+  const [diaPregunta, setDiaPregunta] = useState<string | null>(null)
+  useEffect(() => {
+    setDiaPregunta(semana.length > 0 ? diaAPreguntar() : null)
+  }, [semana])
+
+  // El archivo de pronósticos: se guarda una vez por día, salga o no
+  // salga a navegar. Sin esto, cuando conteste el domingo el pronóstico
+  // del sábado ya no existe y el registro no sirve para calibrar nada.
+  useEffect(() => {
+    if (semana.length === 0) return
+    const nuevos = archivarSemana(semana)
+    void subirArchivo(nuevos)
+    void sincronizar()
   }, [semana])
 
   return (
@@ -63,6 +92,14 @@ export function Home({ estado, unidades }: { estado: EstadoDatos; unidades: Unid
             </div>
           )}
         </section>
+
+        {diaPregunta && (
+          <FilaVerdad
+            key={diaPregunta}
+            dia={diaPregunta}
+            onListo={() => setDiaPregunta(diaAPreguntar())}
+          />
+        )}
 
         {/* La sección se renderiza siempre: el esqueleto reserva su
             altura y evita el salto de layout cuando llegan los datos. */}
@@ -149,7 +186,14 @@ function Veredicto({ dia, unidades }: { dia: DiaJornada; unidades: Unidades }) {
       {/* Misma regla que la tarjeta, sin excepciones: el veredicto no
           puede afirmar algo que la tarjeta de abajo se calla. */}
       {diceForma(dia) && <p className="veredicto-forma">{fraseForma(dia.forma)}</p>}
-      {salvedad(dia) && <p className="veredicto-dudoso">{salvedad(dia)}</p>}
+      {(() => {
+        const s = salvedad(dia)
+        return s && (
+          <p className="veredicto-dudoso" data-motivo={s.motivo}>
+            {s.texto}
+          </p>
+        )
+      })()}
       <Desglose score={dia.score} id="desglose-veredicto" />
     </div>
   )
@@ -216,7 +260,14 @@ function TarjetaDia({
 
       {diceForma(d) && <p className="dia-forma">{fraseForma(d.forma)}</p>}
 
-      {salvedad(d) && <p className="dia-dudoso">{salvedad(d)}</p>}
+      {(() => {
+        const s = salvedad(d)
+        return s && (
+          <p className="dia-dudoso" data-motivo={s.motivo}>
+            {s.texto}
+          </p>
+        )
+      })()}
 
       <p className="dia-extra">
         {d.tormentaDesde && (
@@ -280,9 +331,9 @@ export const TEXTO_FUERA_SKILL =
  * importar si los modelos coinciden— mientras que el desacuerdo es una
  * propiedad de ese día puntual.
  */
-function salvedad(d: DiaJornada): string | null {
-  if (d.fueraDeSkill) return TEXTO_FUERA_SKILL
-  if (dudoso(d)) return TEXTO_DUDOSO
+function salvedad(d: DiaJornada): { motivo: 'horizonte' | 'desacuerdo'; texto: string } | null {
+  if (d.fueraDeSkill) return { motivo: 'horizonte', texto: TEXTO_FUERA_SKILL }
+  if (dudoso(d)) return { motivo: 'desacuerdo', texto: TEXTO_DUDOSO }
   return null
 }
 

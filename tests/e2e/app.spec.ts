@@ -153,7 +153,7 @@ test.describe('La Fourno', () => {
     // El fixture hace que ICON vea el día 1 al 45 % del viento: ese día
     // tiene que salir marcado. Si no sale ninguno, el multimodelo no
     // está llegando (o la ruta lo respondió con la forma equivocada).
-    const dudosos = seccion.locator('.dia-dudoso')
+    const dudosos = seccion.locator('.dia-dudoso[data-motivo="desacuerdo"]')
     await expect(dudosos.first()).toHaveText('Los modelos todavía no coinciden en este día.')
     expect(await dudosos.count()).toBeGreaterThanOrEqual(1)
 
@@ -165,7 +165,7 @@ test.describe('La Fourno', () => {
     // En un día dudoso no se afirma la forma del día. Si los modelos no
     // coinciden ni en cómo viene el día entero, decir "está mejor
     // temprano" es afinar sobre algo que todavía se mueve.
-    const dias = seccion.locator('.dia:has(.dia-dudoso)')
+    const dias = seccion.locator('.dia:has(.dia-dudoso)')  // cualquiera de las dos salvedades
     for (let i = 0; i < (await dias.count()); i++) {
       await expect(dias.nth(i).locator('.dia-forma')).toHaveCount(0)
     }
@@ -194,9 +194,93 @@ test.describe('La Fourno', () => {
     await expect(seccion).toBeVisible({ timeout: 15_000 })
     await expect(seccion.locator('.badge-score strong').first()).toHaveText(/^\d+$/)
     expect(await seccion.locator('.dia').count()).toBeGreaterThanOrEqual(7)
-    expect(await seccion.locator('.dia-dudoso').count()).toBe(0)
+    // Sin multimodelo no puede haber avisos de DESACUERDO entre modelos.
+    // Los de HORIZONTE sí siguen: no dependen de esa request, salen de
+    // qué tan lejos está el día.
+    expect(await seccion.locator('.dia-dudoso[data-motivo="desacuerdo"]').count()).toBe(0)
     // y sin inventar una falla al usuario: el multimodelo no es "el clima"
     await expect(page.getByText(/No se pudo actualizar/)).toHaveCount(0)
+  })
+
+  test('la fila de verdad de campo: dos toques y se va, sin insistir', async ({
+    page,
+  }) => {
+    await mockApis(page)
+    await page.goto('/')
+    // Esperar DATOS, no el esqueleto: la fila depende de que la semana
+    // esté armada, y las tarjetas existen vacías desde el primer render.
+    await expect(page.locator('.badge-score strong').first()).toHaveText(/^\d+$/, {
+      timeout: 15_000,
+    })
+
+    // En un navegador limpio siempre hay días sin contestar atrás.
+    const fila = page.locator('.verdad')
+    await expect(fila).toHaveCount(1)
+    await expect(fila.locator('.verdad-pregunta')).toContainText('¿Saliste el')
+
+    // Estado 2 sin cambiar de vista: no hay pantalla nueva.
+    const urlAntes = page.url()
+    await fila.getByRole('button', { name: 'Sí' }).click()
+    expect(page.url()).toBe(urlAntes)
+    await expect(fila.locator('.verdad-pregunta')).toContainText('¿Cómo estuvo')
+    for (const b of ['Peor', 'Igual', 'Mejor']) {
+      await expect(fila.getByRole('button', { name: b })).toBeVisible()
+    }
+
+    // Al contestar, la fila se va — o pasa al día anterior, pero nunca
+    // vuelve a preguntar por el mismo día.
+    await fila.getByRole('button', { name: 'Igual' }).click()
+    const quedan = await page.locator('.verdad').count()
+    if (quedan > 0) {
+      await expect(page.locator('.verdad .verdad-pregunta')).toContainText('¿Saliste el')
+    }
+
+    // Y no bloquea nada: el veredicto sigue ahí.
+    await expect(page.locator('.veredicto')).toHaveCount(1)
+  })
+
+  test('la fila no insiste: contestado el día, no vuelve a salir tras recargar', async ({
+    page,
+  }) => {
+    await mockApis(page)
+    await page.goto('/')
+    // Esperar DATOS, no el esqueleto: la fila depende de que la semana
+    // esté armada, y las tarjetas existen vacías desde el primer render.
+    await expect(page.locator('.badge-score strong').first()).toHaveText(/^\d+$/, {
+      timeout: 15_000,
+    })
+    const primerDia = await page.locator('.verdad-pregunta').textContent()
+    await page.locator('.verdad').getByRole('button', { name: 'No salí' }).click()
+    await page.reload()
+    await expect(page.locator('.seccion-dias')).toBeVisible({ timeout: 15_000 })
+    const quedan = await page.locator('.verdad').count()
+    if (quedan > 0) {
+      expect(await page.locator('.verdad-pregunta').textContent()).not.toBe(primerDia)
+    }
+  })
+
+  test('los botones de la fila cumplen el piso: 44px y foco visible', async ({
+    page,
+  }) => {
+    await mockApis(page)
+    await page.goto('/')
+    // Esperar DATOS, no el esqueleto: la fila depende de que la semana
+    // esté armada, y las tarjetas existen vacías desde el primer render.
+    await expect(page.locator('.badge-score strong').first()).toHaveText(/^\d+$/, {
+      timeout: 15_000,
+    })
+    const botones = page.locator('.verdad .btn-verdad')
+    const n = await botones.count()
+    expect(n).toBeGreaterThan(0)
+    for (let i = 0; i < n; i++) {
+      const caja = await botones.nth(i).boundingBox()
+      expect(caja!.height).toBeGreaterThanOrEqual(44)
+    }
+    await botones.first().focus()
+    const outline = await botones.first().evaluate(
+      (el) => getComputedStyle(el).outlineStyle,
+    )
+    expect(outline).not.toBe('none')
   })
 
   test('el aviso fijo no tapa contenido, ni con el texto agrandado', async ({ page }) => {

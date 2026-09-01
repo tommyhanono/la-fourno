@@ -41,163 +41,244 @@ que sea porque sospechas **deriva**, no porque no se hizo.
 | Medir el picado con `wind_wave_*` (31-ago-2026) | **Probado y descartado.** `wave_period` ya es media ponderada por energía | nota larga en `score.ts`, contribución `mar-corto` |
 | Física de la marea CMEMS (31-ago-2026) | Sana: M2 a 12.48 h vs 12.42 h teóricos, sicigia 4.5–4.7 m, ciclo correcto. Ojo: el contraste **externo** sigue abierto | `tide.ts` |
 | Umbral CAPE 2500 J/kg (31-ago-2026) | Bien puesto: percentil ~93, dispara en 6.3 % de las horas | `calibracion.ts` |
-| Error del pronóstico por anticipación (31-ago-2026) | **No crece con los días**: MAE ~2.7 kt igual a 1 que a 7 días | ver §Frente 2 |
+| Error del pronóstico por anticipación (1-sep-2026) | SÍ crece: 2.38 kt a 1 día → 3.48 a 7. Empata con climatología en los días 6-7. **Corrige la medición del 31-ago** | `scripts/medir-skill.mjs` |
+| Contraste externo de la marea (1-sep-2026) | n=356 contra NOAA Balboa. Sesgo de −27 min **corregido**; error típico 27.0 → 3.6 min | `scripts/medir-marea.mjs`, test de regresión |
+| Estacionalidad de la calibración (1-sep-2026) | No hace falta: separa días en seca y en lluviosa | `scripts/medir-estaciones.mjs` |
+| Sensibilidad de las perillas (1-sep-2026) | 1 eliminada (bono mar viejo), 3 marcadas críticas | `tests/unit/sensibilidad.test.ts` |
 | Resolución real de los 9 puntos (31-ago-2026) | 7 celdas de clima, 6 de mar. Contadora/Chapera/Caracoles comparten viento | `api.ts` |
 
 ---
 
 ## Frentes abiertos, por prioridad
 
-### P1 — No hay ninguna verdad de campo
+### P1 — Verdad de campo: la tubería ya está, faltan los datos
 
-**El problema.** Todo el score está calibrado contra el criterio de
-Tommy, no contra cómo salió el viaje. Ni un solo número de
-`calibracion.ts` ha sido confrontado con la realidad. Eso significa que
-hoy la calibración es **infalsificable**: si estuviera mal, nada en el
-repo se enteraría.
+**Sigue siendo el techo de todo lo demás**, pero cambió de naturaleza:
+antes faltaba construirla, ahora falta que se llene.
 
-Es el techo de todo lo demás. Se pueden seguir puliendo las fuentes,
-pero sin verdad de campo no hay forma de saber si `viento.curva` refleja
-lo que se siente en un CCX 40 o si es una opinión bien comentada.
+**El problema.** Ningún número de `calibracion.ts` se ha comparado nunca
+con cómo salió un viaje. La calibración es **infalsificable**: si
+estuviera mal, nada en el repo se enteraría. Por eso las perillas
+críticas están marcadas como "sin validar" y no se afinan a ojo.
 
-**Qué hacer.** Lo más chico que sirva: al volver de un viaje, registrar
-el día, el destino, y una nota de una línea sobre cómo estuvo. Con
-15–20 salidas ya se puede comparar el score contra la experiencia y
-mover anclajes con fundamento.
+**Lo que se construyó el 1-sep-2026:**
 
-**Ojo con el alcance.** Esto toca producto, no solo código, y agrega
-una pantalla a una app que se limpió a propósito para no estar
-enredada. **Preguntarle a Tommy antes de construirlo.** No es una
-decisión técnica.
+- Una **fila** en el home, y nada más — no hay pantalla nueva ni
+  bitácora. Sale solo si hay un día de los últimos 3 sin registro.
+  "¿Saliste el sábado?" → No salí / Sí → Peor / Igual / Mejor, más
+  viento real y una nota, los dos opcionales. Nunca insiste, nunca
+  notifica, nunca bloquea.
+- El **archivo de pronósticos**, que es la mitad que de verdad importa:
+  la app guarda cada día lo que estaba pronosticando, salga él o no.
+  Sin esto el registro no serviría, porque el pronóstico se recalcula y
+  para cuando contesta el domingo el del sábado ya no existe.
+- Persistencia: localStorage manda (funciona sin señal); Supabase es
+  respaldo best-effort en las tablas `fourno_registros` y
+  `fourno_pronosticos` del proyecto compartido. Escrituras solo por RPC
+  SECURITY DEFINER con token, igual que `cc_*`.
 
-**Criterio de éxito.** Poder responder: "cuando la app dijo 70+, ¿el
-viaje estuvo bueno?" con datos, no con intuición.
+**Qué falta.** Que se acumulen ~15-20 salidas. Ahí recién se puede:
 
----
+1. Confirmar o mover `pesoPico` (la más sensible de todas).
+2. Confirmar `rachaDeltaKt` y `marea.bajaExtremaFrac`.
+3. Desbloquear la sombra de islas, hoy imposible de validar.
+4. Responder la pregunta de fondo: *cuando la app dijo 70+, ¿el viaje
+   estuvo bueno?*
 
-### P2 — El error se midió solo en temporada de lluvia
+**Cómo leer los datos después:** las dos tablas están en el Supabase
+compartido (proyecto tres-leches). `fourno_registros` trae la respuesta
+con el pronóstico congelado al lado, en `pronostico`; `fourno_pronosticos`
+trae el archivo diario con `dia` y `emitido_el`, cuya diferencia es la
+anticipación. Con eso se puede medir error real por horizonte sin
+depender de que se haya acordado de contestar.
 
-**Lo medido (31-ago-2026).** Error real del pronóstico contra lo que
-después pasó, corredor marina+Contadora, horas 9–16, últimos 14 días:
+**Ojo con el token.** `VITE_FOURNO_TOKEN` viaja en el bundle: cualquiera
+que abra la app lo puede leer. No es un secreto, es una molestia para el
+que pase por ahí. Si algún día aparece basura en las tablas, se rota el
+valor en `fourno_config` y en Vercel.
 
-| anticipación | MAE | sesgo | en puntos de viento (de 45) |
-|---|---|---|---|
-| 1 día | 2.71 kt | +0.80 | 3.0 |
-| 2 días | 2.51 kt | −0.22 | 2.5 |
-| 3 días | 2.70 kt | −0.22 | 2.9 |
-| 5 días | 2.69 kt | −0.62 | 2.6 |
-| 7 días | 2.62 kt | −0.62 | 2.6 |
+### CERRADO — El pronóstico tiene skill, pero se acaba en el día 5
 
-**Plano.** El domingo que viene se pronostica tan bien como mañana, lo
-cual respalda mostrar la semana completa con la misma cara. Y el piso de
-ruido (~3 pts) queda muy por debajo del umbral de desacuerdo entre
-modelos (8 pts), así que ese aviso no está marcando ruido.
+**Medido el 1-sep-2026** (`scripts/medir-skill.mjs`). Verdad = ERA5,
+corredor marina+Contadora, horas 9-16, ventana 1-jun a 20-ago-2026,
+n≈600 por horizonte, climatología de 2019-2025. MAE en nudos:
 
-**Por qué no cerrarlo todavía.** Son 14 días de **temporada lluviosa**,
-donde el viento es flojo y parejo. Justo por eso el error casi no
-depende de la anticipación: no hay mucho que errar. En temporada seca,
-con nortes de 15–20 kt, la habilidad del modelo probablemente sí decaiga
-con los días — y esa es la temporada en que más se sale.
+| lead | modelo | persistencia | climatología | pareado vs clima |
+|---|---|---|---|---|
+| −1d | 2.38 | 2.98 | 3.22 | −0.838 ±0.111 ✔ |
+| −2d | 2.68 | 3.36 | 3.23 | −0.558 ±0.099 ✔ |
+| −3d | 2.82 | 3.74 | 3.25 | −0.429 ±0.087 ✔ |
+| −4d | 3.07 | 4.08 | 3.28 | −0.213 ±0.092 ✔ |
+| −5d | 3.10 | 3.83 | 3.30 | −0.195 ±0.085 ✔ |
+| −6d | 3.36 | 4.00 | 3.31 | +0.049 ±0.081 ✖ empate |
+| −7d | 3.48 | 3.69 | 3.33 | +0.146 ±0.085 ✖ empate |
 
-**Cómo cerrarlo.** Repetir la misma medición entre enero y marzo. Si el
-MAE a 7 días se despega del de 1 día, hay que decirlo en la app: los
-días lejanos dejarían de valer lo mismo.
+**Tres cosas quedaron claras.** (1) El error SÍ crece con el horizonte:
++46 % del día 1 al 7. (2) Le gana a persistencia en 7/7, así que el
+pipeline de medición está sano — descarta que el día 1 no tenga skill.
+(3) A partir del día 6 **empata con la climatología**: el pronóstico ya
+no aporta nada sobre "así viene esta época del año".
 
----
+Consecuencia en el producto: los días se siguen mostrando —fue un
+pedido explícito— pero del 6 en adelante la app lo dice, y no afirma la
+forma del día. Perilla: `skillHorizonteDias: 5`.
 
-### P2 — El contraste externo de la marea es de n=2
+**Corrige la medición del 31-ago**, que decía que el error no crecía.
+Aquella metía horas futuras dentro de la "verdad" y tenía n=240.
 
-**Lo que hay.** Dos comprobaciones distintas, que conviene no mezclar:
+Verificado de paso: la columna `wind_speed_10m` que devuelve
+previous-runs-api para fechas pasadas es **idénticamente ERA5** (MAE
+0.00 kt sobre 1944 h). O sea que no era el modelo comparándose consigo
+mismo — pero ERA5 sigue siendo un reanálisis, no una boya, y no hay
+observación directa de viento en el Golfo que sea gratis.
 
-1. **Contraste externo (9-ago-2026)** contra la tabla armónica de Balboa
-   de tide-forecast.com — fuente **comercial, no oficial**. Rango del
-   ciclo 3.23 m modelo vs 3.18 m tabla, desfase ~30 min en bajamar
-   (5:25 vs 6:01 am) y en pleamar (11:45 vs 12:17 pm).
-2. **Consistencia física (31-ago-2026)**, 8 días: período M2, ciclo
-   sicigia-cuadratura y amplitud, todo en su sitio.
-
-**Lo que falta.** El punto 1 son **dos extremos de un solo día contra una
-fuente comercial**. Alcanza para descartar que el modelo esté
-groseramente corrido; no para afirmar un "error típico de ±30 min", que
-es lo que el código llegó a decir. Y el punto 2 es autoconsistencia: si
-CMEMS tuviera un sesgo sistemático de 20–30 min, saldría igual de bien.
-
-**Cómo cerrarlo.** Predicciones de un puerto de referencia del Pacífico
-panameño, preferible fuente **oficial** (AMP / IGN), sobre varias semanas
-que incluyan sicigia y cuadratura. Comparar los instantes contra
-`extremos()` y reportar el **sesgo medio con su dispersión**, no un
-ejemplo. Si el sesgo es sistemático, se puede corregir; si es disperso,
-hay que decir el margen en la app.
-
-**Importante:** pase lo que pase, **la etiqueta "estimada" no se quita**
-— es decisión de producto, está en `CLAUDE.md`.
-
----
-
-### P2 — El modelo no sabe que las islas tapan
-
-Las Perlas son islas, y una isla protege su lado de sotavento. El modelo
-de oleaje no resuelve eso a esta escala: Contadora, Chapera y Caracoles
-salen con **la misma ola** porque comparten celda.
-
-En la práctica el destino se elige, entre otras cosas, por dónde va a
-estar más calmado — y ahí la app hoy no distingue. Puede estar
-recomendando la cara equivocada de la isla.
-
-**Cómo abordarlo.** Cruzar dirección de ola y viento con la geometría de
-cada punto: un destino al abrigo del rumbo de donde viene el mar debería
-puntuar mejor. `wave_direction` y `wind_direction_10m` ya se bajan y
-**hoy no se usan para nada en el score**.
-
-**Cuidado.** Es fácil inventar un modelo de sombra que suene físico y no
-prediga nada. Antes de ponerlo en el score, verificar que cambie el
-destino elegido en días reales y que el cambio tenga sentido en el mapa.
+**Lo que queda abierto:** esto es temporada LLUVIOSA. La API de corridas
+anteriores solo llega ~92 días atrás, así que en seca no hay pronósticos
+viejos que verificar. En seca los nortes son forzados por sinóptica y la
+predictibilidad podría llegar más lejos: habría que repetirlo entre
+enero y marzo y, si el horizonte se estira, subir `skillHorizonteDias`.
 
 ---
 
-### P3 — Perillas que nadie ha validado
+### CERRADO — No hace falta estacionalizar la calibración
 
-Números puestos a criterio, nunca confrontados. Ninguno es urgente;
-todos se vuelven medibles el día que exista verdad de campo (P1).
+**Medido el 1-sep-2026** (`scripts/medir-estaciones.mjs`), 451 días de
+seca y 460 de lluviosa, ERA5 2021-2025:
 
-| Perilla | Valor | Qué se asume sin probar |
+| | seca (ene-mar) | lluviosa (jun-ago) |
 |---|---|---|
-| `jornada.pesoPico` | 0.5 | Que el día se resume mitad promedio, mitad peor momento |
-| `viento.rachaDeltaKt` / `rachaPenal` | 7 kt / −8 | Que una racha 7 kt sobre el sostenido molesta tanto |
-| `marea.bajaExtremaFrac` | 0.15 | Que ese nivel relativo complica de verdad en Las Perlas (depende de la batimetría, nunca se miró) |
-| `ola.periodoLargoS` / bono | 12 s / +3 | Que ahí empieza el mar cómodo |
-| `UMBRAL_PAREJO` / `UMBRAL_FORMA` | 3 / 6 pts | Que por debajo de eso es ruido del modelo |
+| viento típico de jornada | 10.7 kt (p90 15.0) | 7.5 kt (p90 10.4) |
+| días con lluvia en la jornada | 10 % | 68 % |
+| dispersión del score (p90−p10) | 36.5 | 29.2 |
+
+El score separa días en las dos temporadas, así que no hace falta
+estacionalizarlo. La seca es más ventosa y ahí la curva de viento
+trabaja en su parte empinada, que es justo donde discrimina mejor.
+
+**Límite del método, importante:** el archivo de ERA5 **no trae CAPE**
+(0 de 2208 h) y su `weather_code` nunca da tormenta (95/96/99) — cero
+tormentas en 460 días de lluviosa, que es imposible en Panamá. Así que
+la dispersión de lluviosa es un PISO: el score real, que sí ve tormentas
+en el pronóstico en vivo, separa más de lo que se pudo medir.
 
 ---
 
-### P3 — El término de marea quedó en cajones
+### BLOQUEADO por P1 — Sombra de islas: medido y NO implementado
 
-Viento, sol y ola usan **curvas** con anclajes interpolados. La marea
-sigue con cajones duros: 0.3, 0.6 u 0.8 del peso según el caso
-(`score.ts`, sección Marea). Es justo lo que se corrigió en todo lo
-demás porque colapsaba días distintos en el mismo número.
+Se evaluó y **no se hizo**, con números:
 
-Pesa 10 de 100, así que el daño es acotado — pero es una inconsistencia
-real con la filosofía declarada en `calibracion.ts`. Efecto lateral: un
-día perfecto solo llega a 100 si además la marea está llenando.
+1. Contadora, Chapera y Caracoles caen en la **misma celda marina** y
+   devuelven el número idéntico (0.6 m, dirección 205°). Un factor de
+   exposición entre ellos sería ficción pura.
+2. Entre celdas distintas, la razón de altura de ola varía apenas
+   **0.068** según el cuadrante del viento (mogo/contadora, 0.973 a
+   1.041). El modelo no lleva señal direccional de sombra.
+3. En temporada seca el viento viene del N/NO en ~90 % de las horas: no
+   hay variedad direccional que explotar aunque la hubiera.
+
+`wave_direction` y `wind_direction_10m` se bajan y **siguen sin usarse
+en el score**, a propósito. Retomarlo cuando haya verdad de campo: sin
+ella, una tabla de exposición escrita a mano no se puede validar.
+
+### CERRADO — La marea venía adelantada 27 min, y ya está corregida
+
+**Medido el 1-sep-2026** (`scripts/medir-marea.mjs`). Se encontró la
+estación **9812501 de NOAA — "BALBOA, CANAL ZONE (PACIFIC)"**, que
+publica predicciones armónicas oficiales en datum **MSL**, el mismo que
+devuelve CMEMS, para cualquier rango de fechas y en dominio público.
+Balboa está a ~7 km de Marina Ocean Reef. El contraste externo pasa de
+n=2 a **n=356**.
+
+| | valor |
+|---|---|
+| sesgo medio | **−27.0 min** (el modelo adelanta) |
+| mediana / p10 / p90 | −27.0 / −35.0 / −19.4 |
+| rango | −40.6 a −3.5 · **los 356 del mismo signo** |
+| pleamar vs bajamar | −26.4 vs −27.6 (iguales) |
+
+**Se descartó que fuera geografía.** El mismo sesgo aparece lejísimos:
+Puntarenas −33.7, La Libertad (Ecuador) −33.3 y **San Cristóbal
+(Galápagos) −29.9**, en océano abierto a 1900 km. Es fase del modelo
+CMEMS, no que la celda caiga al sur de la estación. Los ~30 min sugieren
+una convención de etiquetado (la muestra de la hora H sería el promedio
+de H a H+1, o sea centrada en H+30 min).
+
+**Corregido** con `marea.desfaseModeloMin: 27`, aplicado una sola vez
+sobre los tiempos de la serie para que nivel, tendencia y extremos
+queden corridos igual. Efecto: el error típico del instante de
+pleamar/bajamar baja de **27.0 a 3.6 min** y el p90 de 35.0 a 10.5.
+
+Queda como **test de regresión permanente**
+(`tests/unit/marea-validacion.test.ts`) contra un fixture de 355
+extremos oficiales, no como script suelto: si alguien pone el desfase en
+0, el test cae.
+
+**Lo que queda abierto:** el nivel. El modelo lee +0.38 m en pleamar y
++0.61 m en bajamar respecto al MSL de NOAA, o sea que además comprime el
+rango ~0.27 m. NO se corrigió, y a propósito: parte de esa diferencia es
+espacial (la celda está 10 km al sur, donde el rango es menor) y no se
+puede separar del sesgo de datum sin más estaciones. El score usa nivel
+RELATIVO al rango del día, así que no lo afecta; lo que quedaría corrido
+son los metros que se muestran. **Y la etiqueta "estimada" no se quita.**
+
+**Si Open-Meteo arregla la convención**, este desfase sobra y habría que
+ponerlo en 0. La forma de saberlo es volver a correr
+`scripts/medir-marea.mjs`.
 
 ---
 
-### P4 — Un día con datos parciales compite de igual a igual
+### CERRADO — Perillas: una eliminada, tres marcadas como críticas
 
-Si falta el dato de mar, `scoreBloque` marca `parcial: true` pero el
-total simplemente sale ~25 puntos más bajo, y ese día se compara y se
-ordena contra días completos como si nada.
+**Medido el 1-sep-2026** (`tests/unit/sensibilidad.test.ts`) sobre **180
+días reales** del corredor, 90 de seca y 90 de lluviosa, moviendo cada
+perilla y mirando si cambia el ranking o la etiqueta que ve el usuario:
 
-Hoy el riesgo es bajo: la API marina falla entera o llega entera, así
-que dentro de una misma corrida o todos los días tienen mar o ninguno.
-Pero si alguna vez llega recortada al final del horizonte, los últimos
-días perderían el ranking por falta de dato, no por mal clima.
+| perilla | Δscore | semanas | etiquetas | veredicto |
+|---|---|---|---|---|
+| `pesoPico` 0.5→0 | 4.43 | 7/25 | 33 | **crítica, sin validar** |
+| `rachaDeltaKt` 7→5 | 3.87 | 6/25 | 35 | **crítica, sin validar** |
+| término de marea completo | 5.81 | 4/25 | 52 | **se queda: sí pesa** |
+| `marea.bajaExtremaFrac` 0.15→0.30 | 1.34 | 5/25 | 9 | crítica (cambia top-1) |
+| pesos viento/sol ±5 | ~1.7 | 0-2/25 | ~14 | poco sensible |
+| **bono "mar viejo"** | **0.03** | **0/25** | **0** | **ELIMINADO** |
 
-**Cómo cerrarlo.** No dejar que un día `parcial` gane el veredicto, o
-comparar sobre el máximo alcanzable en vez del absoluto.
+**Eliminado:** el bono de mar viejo (`periodoLargoS`/`periodoLargoBono`).
+No cambiaba ni una etiqueta en 180 días. Estaba muerto porque `periodoS`
+es el período MÍNIMO de la jornada, y pedir que el mínimo llegue a 12 s
+pasa en 2 de 90 días por temporada. Si alguna vez se quiere premiar el
+mar cómodo, el problema no es el tamaño del bono: hay que mirar el
+período típico y no el mínimo.
+
+**El término de marea SE QUEDA**, y ahora con respaldo: es el tercero
+que más pesa. Pero sus VALORES (0.15, 6, 3, 2) siguen sin validar, y
+`bajaExtremaFrac` es la más sensible. Sigue repartiendo por cajones
+mientras el resto usa curvas: es una inconsistencia consciente,
+convertirla en curva sería inventar valores intermedios.
+
+**NO medibles con ERA5** (no trae los insumos): `probLluviaPenalMax`,
+`capeAltoPenal`, `tormentaPenal`.
+
+Hay una guardia permanente: si alguien agrega una perilla que no mueve
+nada, el test `ninguna perilla de puntaje es decoración pura` falla. Las
+rayas de seguridad quedan fuera de esa guardia a propósito — deben estar
+dormidas en días buenos, y eso también se prueba.
 
 ---
+
+### CERRADO — Guard de datos parciales
+
+`ResultadoScore` ahora trae `faltan[]` y `pesoFaltante`, no solo un
+booleano. Con eso:
+
+- **Un día incompleto ya no compite** por el veredicto contra días
+  completos. Sin dato de mar perdía 25 puntos de arranque (ola 15 +
+  marea 10) y perdía siempre por una razón que no era el clima. Si
+  ninguno está completo, se comparan entre ellos.
+- **Sin viento o sin cielo no se muestra número**: sale "Sin dato" en
+  gris (nunca en rojo: falta de dato no es mala condición). Sin ola ni
+  marea sí se muestra, porque lo que queda —viento y sol— es de lo que
+  Tommy decide; el desglose aclara que el puntaje va sobre 75.
+- El desglose dice **QUÉ** faltó, no solo que faltó algo.
 
 ## Recetas de medición
 
@@ -225,6 +306,24 @@ atrás que el pronóstico, y son APIs distintas: clima en
 Las claves vuelven con el modelo pegado (`wind_speed_10m_ecmwf_ifs025`).
 ICON llega más corto que los otros: siempre tolerar nulos al final.
 
+**Baselines tontos (persistencia y climatología)** — sin esto no se
+sabe si el modelo tiene skill o solo es consistente consigo mismo. Ya
+está hecho en `scripts/medir-skill.mjs`; reusarlo cambiando la ventana.
+
+**Marea contra fuente oficial** — NOAA publica predicciones armónicas
+para Balboa (estación **9812501**), datum MSL, métrico, dominio público:
+
+```
+https://api.tidesandcurrents.noaa.gov/api/prod/datagetter
+  ?product=predictions&station=9812501&datum=MSL&interval=hilo
+  &begin_date=20260601&end_date=20260831&time_zone=lst&units=metric&format=json
+```
+
+Las constantes armónicas están en el endpoint `mdapi/.../harcon.json`,
+por si alguna vez hace falta generarlas localmente. Otras estaciones del
+Pacífico para contrastar: Puntarenas 9684403, La Libertad 9991474, San
+Cristóbal (Galápagos) 9992401.
+
 **Ver la app con datos reales** — levantar `npm run preview -- --port 4330`
 y manejarla con Playwright. Los auditores (`scripts/audita-layout.mjs`,
 `scripts/audita-contraste.mjs`) usan la API real, no fixtures. Y **mirar
@@ -247,7 +346,8 @@ antes.
 - Chop del viento por rango: 0–5 kt → 0.04 m · 8–12 kt → 0.25 m · 15+ kt → 0.62 m
 - Rango de marea: **4.5–4.7 m** en sicigia, **2.7 m** en cuadratura
 - CAPE en Panamá, agosto: mediana **1740**, p90 2360 J/kg
-- MAE del viento, cualquier anticipación: **~2.7 kt ≈ 3 puntos de score**
+- MAE del viento: **2.38 kt a 1 día**, **3.48 kt a 7 días** (verdad ERA5)
+- Desfase de la marea CMEMS antes de corregir: **−27 min** en Panamá
 - Desacuerdo entre modelos: marca **2 de 7 días** con umbral 8 pts
 
 ---
@@ -257,8 +357,8 @@ antes.
 ```
 npm run typecheck     # incluye los tests (tsc solo miraba src hasta ago-2026)
 npm run lint
-npm test              # 63 unit
-npm run test:e2e      # 16 E2E
+npm test              # 105 unit
+npm run test:e2e      # 19 E2E
 node scripts/audita-layout.mjs      # requiere preview en :4330
 node scripts/audita-contraste.mjs   # requiere preview en :4339
 ```

@@ -60,6 +60,22 @@ export interface ResultadoScore {
   contribuciones: Contribucion[]
   /** true si faltó algún dato y el score es parcial */
   parcial: boolean
+  /**
+   * Qué insumos faltaron, en palabras ('viento', 'ola'…). Vacío si
+   * llegó todo.
+   */
+  faltan: string[]
+  /**
+   * Cuántos puntos del máximo de 100 quedaron fuera de alcance por
+   * datos que no llegaron.
+   *
+   * Existe porque un booleano no alcanzaba: sin dato de mar un día
+   * pierde 25 puntos (ola 15 + marea 10) y nunca podría ganarle a uno
+   * completo, pero igual salía compitiendo en el ranking como si nada.
+   * Con el peso a la vista se puede decidir si el número todavía
+   * significa algo o si mejor no mostrar ninguno.
+   */
+  pesoFaltante: number
   /** true si hay bandera de seguridad (tormenta / mar peligroso) */
   peligro: boolean
 }
@@ -108,8 +124,13 @@ const r1 = (x: number) => Math.round(x * 10) / 10
 /** Score de navegación para un bloque de 2 h en el corredor. */
 export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): ResultadoScore {
   const c: Contribucion[] = []
-  let parcial = false
+  const faltan: string[] = []
+  let pesoFaltante = 0
   let peligro = false
+  const falta = (que: string, peso: number) => {
+    faltan.push(que)
+    pesoFaltante += peso
+  }
 
   // --- Viento (lo que manda) ---
   if (e.vientoKt != null) {
@@ -132,7 +153,7 @@ export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): R
       })
     }
   } else {
-    parcial = true
+    falta('viento', cal.pesos.viento)
   }
 
   // --- Sol ---
@@ -148,7 +169,7 @@ export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): R
             : `cielo cerrado (${Math.round(e.nubosidadPct)} % nubes)`
     c.push({ clave: 'sol', etiqueta, puntos: r1(cal.pesos.sol * frac), tipo: 'base' })
   } else {
-    parcial = true
+    falta('cielo', cal.pesos.sol)
   }
   if (e.probLluviaPct != null && e.probLluviaPct > 20) {
     c.push({
@@ -169,20 +190,11 @@ export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): R
       puntos: r1(cal.pesos.ola * frac),
       tipo: 'base',
     })
-    // periodoS es el período MEDIO del mar total, ponderado por energía:
-    // baja solo cuando el chop realmente domina (ver la nota larga en la
-    // sección de mar corto). Por eso pedir ≥12 s ya garantiza que es
-    // swell limpio, sin golpeteo encima.
-    if (e.periodoS != null && e.periodoS >= cal.ola.periodoLargoS && e.olaM <= 0.9) {
-      c.push({
-        clave: 'mar-viejo',
-        etiqueta: 'mar viejo, período largo',
-        puntos: cal.ola.periodoLargoBono,
-        tipo: 'bono',
-      })
-    }
+    // Acá vivía el bono de "mar viejo, período largo". Se quitó el
+    // 1-sep-2026 tras medirlo en 180 días reales: 0 semanas movidas,
+    // 0 etiquetas cambiadas. Ver la nota en calibracion.ts (sección ola).
   } else {
-    parcial = true
+    falta('ola', cal.pesos.ola)
   }
 
   // --- Marea (menor, pero cuenta) ---
@@ -225,8 +237,7 @@ export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): R
       }
     }
   } else {
-    // sin dato de marea el score sigue: es factor menor
-    parcial = true
+    falta('marea', cal.pesos.marea)
   }
 
   // --- Seguridad (mata bloques, no negocia) ---
@@ -324,7 +335,14 @@ export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): R
     0,
     Math.min(100, Math.round(c.reduce((acc, x) => acc + x.puntos, 0))),
   )
-  return { total, contribuciones: c, parcial, peligro }
+  return {
+    total,
+    contribuciones: c,
+    parcial: faltan.length > 0,
+    faltan,
+    pesoFaltante,
+    peligro,
+  }
 }
 
 export interface EntradaPlaya {
@@ -337,9 +355,14 @@ export interface EntradaPlaya {
 /** Score de día de playa: sol manda, viento y lluvia acompañan. */
 export function scorePlaya(e: EntradaPlaya, cal: Calibracion = CALIBRACION): ResultadoScore {
   const c: Contribucion[] = []
-  let parcial = false
+  const faltan: string[] = []
+  let pesoFaltante = 0
   let peligro = false
   const p = cal.playa
+  const falta = (que: string, peso: number) => {
+    faltan.push(que)
+    pesoFaltante += peso
+  }
 
   if (e.nubosidadPct != null) {
     const frac = curvaFrac(cal.sol.curva, 'pct', e.nubosidadPct)
@@ -349,7 +372,7 @@ export function scorePlaya(e: EntradaPlaya, cal: Calibracion = CALIBRACION): Res
       puntos: r1(p.pesos.sol * frac),
       tipo: 'base',
     })
-  } else parcial = true
+  } else falta('cielo', p.pesos.sol)
 
   if (e.vientoKt != null) {
     const frac = curvaFrac(p.vientoCurva, 'kt', e.vientoKt)
@@ -359,7 +382,7 @@ export function scorePlaya(e: EntradaPlaya, cal: Calibracion = CALIBRACION): Res
       puntos: r1(p.pesos.viento * frac),
       tipo: 'base',
     })
-  } else parcial = true
+  } else falta('viento', p.pesos.viento)
 
   if (e.probLluviaPct != null) {
     const frac = curvaFrac(p.lluviaCurva, 'pct', e.probLluviaPct)
@@ -372,7 +395,7 @@ export function scorePlaya(e: EntradaPlaya, cal: Calibracion = CALIBRACION): Res
       puntos: r1(p.pesos.lluvia * frac),
       tipo: 'base',
     })
-  } else parcial = true
+  } else falta('lluvia', p.pesos.lluvia)
 
   if (e.weatherCodes.some((w) => (cal.seguridad.tormentaCodes as readonly number[]).includes(w))) {
     c.push({
@@ -388,7 +411,30 @@ export function scorePlaya(e: EntradaPlaya, cal: Calibracion = CALIBRACION): Res
     0,
     Math.min(100, Math.round(c.reduce((acc, x) => acc + x.puntos, 0))),
   )
-  return { total, contribuciones: c, parcial, peligro }
+  return {
+    total,
+    contribuciones: c,
+    parcial: faltan.length > 0,
+    faltan,
+    pesoFaltante,
+    peligro,
+  }
+}
+
+/**
+ * ¿El score todavía significa algo, o le faltan los insumos que lo
+ * sostienen? Falta un dato CRÍTICO cuando lo que no llegó pesa tanto
+ * como el cielo o más — o sea, cuando falta el viento o el cielo.
+ *
+ * Sin ola ni marea (25 pts entre las dos) el día sigue diciendo algo:
+ * el viento y el sol, que es de lo que Tommy decide. Sin viento o sin
+ * cielo, el número sería un decorado.
+ */
+export function faltaDatoCritico(
+  score: ResultadoScore,
+  cal: Calibracion = CALIBRACION,
+): boolean {
+  return score.pesoFaltante >= cal.pesos.sol
 }
 
 export function nivelScore(total: number, cal: Calibracion = CALIBRACION) {
