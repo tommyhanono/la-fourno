@@ -291,9 +291,17 @@ export const CALIBRACION = {
    * se vuelve papel tapiz: si sale la mitad de las veces, deja de
    * querer decir algo.
    *
-   * OJO: el umbral está puesto sobre n=8 días. Es poco. Si al mirarlo
-   * en otra época marca casi todo o casi nada, hay que remedirlo — la
-   * receta está en ACCURACY.md.
+   * REMEDIDO el 1-sep-2026 sobre 137 días, no 8: la API de pronóstico
+   * histórico acepta `models=`, así que hay meses de multimodelo. El
+   * número puesto a ojo aguantó.
+   *
+   *   LLUVIOSA (72 d): p50=12.6 p90=22.1 → con 20 marca el 19 %
+   *   SECA     (65 d): p50=14.1 p90=33.4 → con 20 marca el 26 %
+   *
+   * Con 10 marcaría dos de cada tres días y el aviso se volvería papel
+   * tapiz. En seca los modelos discrepan más en la cola (p90 33.4 vs
+   * 22.1): los nortes se pronostican bien de media, pero cuando fallan,
+   * fallan feo. Hay test de regresión con fixture.
    */
   desacuerdoModelosPts: 20,
 

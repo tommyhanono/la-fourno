@@ -370,8 +370,12 @@ umbral se recalibró a **20** (antes 8 sobre 45). Verificado en vivo:
 marca **1 de 8 días**, y ese día es el veredicto — o sea que la app
 marca su propia recomendación como no firme cuando corresponde.
 
-**Ojo:** el umbral se puso sobre n=8 días. Es poco. Si en otra época
-marca casi todo o casi nada, hay que remedirlo.
+**Remedido sobre 137 días**, no 8: la API de pronóstico histórico
+acepta `models=`, así que hay meses de multimodelo. El número puesto a
+ojo aguantó — lluviosa (72 d) p50=12.6, marca 19 %; seca (65 d)
+p50=14.1, marca 26 %. Con 10 marcaría dos de cada tres días. En seca
+los modelos discrepan más en la cola (p90 33.4 contra 22.1): los nortes
+se pronostican bien de media, pero cuando fallan, fallan feo.
 
 ---
 
@@ -503,7 +507,7 @@ antes.
 ```
 npm run typecheck     # incluye los tests (tsc solo miraba src hasta ago-2026)
 npm run lint
-npm test              # 123 unit
+npm test              # 128 unit
 npm run test:e2e      # 19 E2E
 node scripts/audita-layout.mjs      # requiere preview en :4330
 node scripts/audita-contraste.mjs   # requiere preview en :4339
