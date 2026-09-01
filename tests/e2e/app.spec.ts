@@ -17,8 +17,22 @@ function hoyPanama(): string {
   return new Date(Date.now() - 5 * 3600_000).toISOString().slice(0, 10)
 }
 
+/**
+ * Corta Supabase en TODOS los tests.
+ *
+ * Los E2E corren con el .env de verdad, así que sin esto un click en la
+ * fila de verdad de campo escribe en la tabla de producción. Ya pasó una
+ * vez: quedó un registro inventado del 31-ago en fourno_registros, en la
+ * tabla cuyo propósito entero es ser verdad. Se borró, y esto es para
+ * que no vuelva.
+ */
+async function cortarSupabase(page: Page) {
+  await page.route('**supabase.co/**', (route) => route.abort())
+}
+
 async function mockApis(page: Page) {
   usarDiaBase(hoyPanama())
+  await cortarSupabase(page)
   // Ojo: el pronóstico y el multimodelo salen del MISMO host. Se
   // distinguen por `models=` en la query. Si se responde forecast a las
   // dos, el multimodelo llega con la forma equivocada y el desacuerdo
@@ -36,6 +50,7 @@ async function mockApis(page: Page) {
 }
 
 async function cortarRed(page: Page) {
+  await cortarSupabase(page)
   await page.route('**/api.open-meteo.com/**', (route) => route.abort())
   await page.route('**/marine-api.open-meteo.com/**', (route) => route.abort())
 }
@@ -181,6 +196,7 @@ test.describe('La Fourno', () => {
     // La tercera request es un extra. Si falla, se pierde el aviso de
     // desacuerdo y NADA más: el veredicto y la semana siguen enteros.
     usarDiaBase(hoyPanama())
+    await cortarSupabase(page)
     await page.route('**/api.open-meteo.com/**', (route) =>
       route.request().url().includes('models=')
         ? route.abort()
