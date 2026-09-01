@@ -18,9 +18,10 @@
 // viven solo en el teléfono, ninguna sesión futura puede leerlos para
 // calibrar, que es el punto entero.
 
-import { claveDia } from './time'
+import { claveDia, horaPanama } from './time'
 import { CALIBRACION } from '../config/calibracion'
 import type { DiaJornada } from './ventanas'
+import type { EntradaBloque } from './score'
 
 export type Resultado = 'no-sali' | 'peor' | 'igual' | 'mejor'
 
@@ -49,6 +50,19 @@ export interface ResumenPronostico {
   anticipacionDias: number
   /** El desglose, para poder ver QUÉ término falló, no solo el total. */
   contribuciones: { clave: string; puntos: number }[]
+  /**
+   * LOS INSUMOS CRUDOS que alimentaron el score, tal cual entraron.
+   *
+   * Es lo que permite REPRODUCIR el puntaje más adelante con otra
+   * calibración. Sin esto solo se sabe que la app dijo 72 y que el
+   * viaje estuvo peor — pero no se puede responder la pregunta que
+   * importa: "¿con pesoPico en 0.35 habría acertado?". Con la entrada
+   * guardada, una sesión futura corre scoreBloque con las perillas que
+   * quiera sobre los días reales y compara contra las respuestas.
+   *
+   * Son doce números por día: cabe de sobra.
+   */
+  entrada: EntradaBloque
 }
 
 const KEY_REGISTROS = 'lafourno:verdad:v1'
@@ -101,6 +115,7 @@ export function resumir(d: DiaJornada, emitidoEl: string): ResumenPronostico {
       clave: c.clave,
       puntos: c.puntos,
     })),
+    entrada: d.entrada,
   }
 }
 
@@ -153,13 +168,9 @@ export function diaAPreguntar(ahora = new Date()): string | null {
     const d = new Date(ahora.getTime() - i * 86400_000)
     const clave = claveDia(d)
     if (contestados.has(clave)) continue
-    if (i === 0) {
-      // Hoy solo si ya terminó la jornada.
-      const horaPa = Number(
-        new Date(ahora.getTime() - 5 * 3600_000).toISOString().slice(11, 13),
-      )
-      if (horaPa < finJornada) continue
-    }
+    // Hoy solo si ya terminó la jornada: antes de eso el viaje no
+    // terminó y la respuesta sería sobre algo que aún está pasando.
+    if (i === 0 && horaPanama(ahora) < finJornada) continue
     return clave
   }
   return null
@@ -170,13 +181,14 @@ export function guardarRegistro(
   resultado: Resultado,
   extra: { vientoRealKt?: number; nota?: string } = {},
 ): Registro {
+  const snapshot = pronosticoDe(dia)
   const r: Registro = {
     dia,
     resultado,
     ...(extra.vientoRealKt != null ? { vientoRealKt: extra.vientoRealKt } : {}),
     ...(extra.nota ? { nota: extra.nota.slice(0, 280) } : {}),
     // El snapshot se congela ACÁ. Después ya no se puede recuperar.
-    ...(pronosticoDe(dia) ? { pronostico: pronosticoDe(dia) } : {}),
+    ...(snapshot ? { pronostico: snapshot } : {}),
     creadoEn: new Date().toISOString(),
     sincronizado: false,
   }

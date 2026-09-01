@@ -15,6 +15,7 @@ import {
   scoreBloque,
   scorePlaya,
   puntosViento,
+  puntosSol,
   type EntradaBloque,
   type ResultadoScore,
 } from './score'
@@ -111,9 +112,9 @@ export interface DiaJornada {
    */
   enCurso: boolean
   /**
-   * Cuánto se contradicen los modelos sobre este día, en puntos de
-   * viento del score. null si no se pudo medir (falló la request extra
-   * o no hay dos modelos con datos). Por encima de
+   * Cuánto se contradicen los modelos sobre este día, en puntos del
+   * score de viento + sol (de 75). null si no se pudo medir (falló la
+   * request extra o no hay dos modelos con datos). Por encima de
    * `calibracion.desacuerdoModelosPts` el UI avisa que el día no está
    * firme todavía.
    */
@@ -150,14 +151,19 @@ const UMBRAL_FORMA = 6
 
 /**
  * Cuánto se contradicen los modelos globales sobre un día, medido en
- * PUNTOS DE VIENTO del score (0..45), no en nudos.
+ * PUNTOS DEL SCORE (0..75 = viento 45 + sol 30), no en unidades físicas.
  *
- * Por qué en puntos y no en nudos: la curva de viento no es recta. Un
+ * Por qué en puntos y no en nudos o en %: las curvas no son rectas. Un
  * desacuerdo de 3 kt cuando todos rondan los 5 kt no cambia nada — el
  * día es bueno igual. Los mismos 3 kt alrededor de 13 kt mueven el
  * score de "se anda bien" a "incómodo". Lo que importa no es que los
  * modelos difieran, sino que difieran lo suficiente para cambiar la
  * respuesta.
+ *
+ * Suma viento Y sol. Medido el 1-sep-2026, los modelos se contradicen
+ * MÁS en las nubes que en el viento (mediana 10.5 de 30 contra ~5 de
+ * 45): mirar solo el viento dejaba fuera la mayor fuente de duda, justo
+ * en el segundo criterio de Tommy.
  *
  * Devuelve null si no hay al menos dos modelos con datos (pasa en el
  * último día: ICON llega más corto que ECMWF).
@@ -175,21 +181,39 @@ function desacuerdoModelos(
   const puntos = [ms[iSalida], ms[iDestino]].filter(Boolean)
   if (puntos.length === 0) return null
 
+  /** Serie del corredor para una variable de un modelo. */
+  const serie = (clave: string, peor: 'max' | 'media') => {
+    const porHora = new Map<string, number[]>()
+    for (const p of puntos) {
+      const times = p.hourly.time as string[]
+      const vals = (p.hourly[clave] ?? []) as (number | null)[]
+      for (const i of indicesBloque(times, inicio, horas)) {
+        const v = vals[i]
+        if (v == null || Number.isNaN(v)) continue
+        const arr = porHora.get(times[i]) ?? []
+        arr.push(v)
+        porHora.set(times[i], arr)
+      }
+    }
+    // Viento: el peor punto del corredor. Nubes: el promedio, igual que
+    // hace entradaFranja, porque el cielo no se "sufre" por el peor.
+    return [...porHora.values()].map((xs) =>
+      peor === 'max' ? Math.max(...xs) : xs.reduce((a, b) => a + b, 0) / xs.length,
+    )
+  }
+
   const porModelo: number[] = []
   for (const modelo of MODELOS) {
-    const clave = `wind_speed_10m_${modelo}`
-    // Mismo corredor y mismo resumen que usa el score de verdad.
-    const serie = serieCorredor(
-      puntos.map((p) => ({
-        times: p.hourly.time as string[],
-        valores: (p.hourly[clave] ?? []) as (number | null)[],
-      })),
-      inicio,
-      horas,
-    )
-    if (serie.length === 0) continue
-    const v = tipico(meanNum(serie), maxNum(serie))
-    if (v != null) porModelo.push(puntosViento(v))
+    const v = serie(`wind_speed_10m_${modelo}`, 'max')
+    const n = serie(`cloud_cover_${modelo}`, 'media')
+    if (v.length === 0 && n.length === 0) continue
+    // Mismo resumen que usa el score de verdad.
+    const vTip = v.length > 0 ? tipico(meanNum(v), maxNum(v)) : null
+    const nMed = n.length > 0 ? meanNum(n) : null
+    let pts = 0
+    if (vTip != null) pts += puntosViento(vTip)
+    if (nMed != null) pts += puntosSol(nMed)
+    porModelo.push(pts)
   }
   if (porModelo.length < 2) return null
   return Math.max(...porModelo) - Math.min(...porModelo)

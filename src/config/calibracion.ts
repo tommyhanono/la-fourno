@@ -253,20 +253,27 @@ export const CALIBRACION = {
   },
 
   /**
-   * Desacuerdo entre modelos, medido en puntos de viento del score
-   * (de 45), a partir del cual el día se marca como "no confiable".
+   * Desacuerdo entre modelos a partir del cual el día se marca como
+   * "no confiable", medido en puntos del score de viento + sol (de 75).
    *
-   * No es cosmético: el 1-sep-2026 el viento típico de jornada del
-   * corredor era 10.2 kt (ECMWF), 10.8 (GFS) y 5.8 (ICON) — el mismo
-   * día valía 34 o 44 puntos de viento según a quién le creyeras.
+   * No es cosmético. El 1-sep-2026, para el 2-sep —el día que la app
+   * estaba recomendando— los tres modelos veían: viento parecido, pero
+   * ECMWF 28 % de nubes, GFS 95 % e ICON 46 %. O sea 21.6 de los 30
+   * puntos que pesa el sol, en juego, sin que la app dijera nada.
    *
-   * El umbral se eligió midiendo: sobre los 8 días de esa semana los
-   * desacuerdos fueron 5.7 · 11.4 · 0.0 · 3.3 · 3.7 · 9.1 · 1.6 · 2.9.
-   * Con 8 se marcan 2 de 8 días, justo los dos genuinamente flojos.
-   * Bajarlo a 4 marcaría 3 de 8 y el aviso se vuelve papel tapiz:
-   * si sale casi siempre, deja de querer decir algo.
+   * Escala: la primera versión miraba SOLO viento (de 45) con umbral 8.
+   * Al sumar el sol la escala pasó a 75 y hubo que recalibrar. Medido
+   * sobre los 8 días de esa semana, el desacuerdo combinado dio
+   * 3.8 · 6.4 · 7.6 · 13.8 · 15.5 · 19.1 · 21.4 · 33.0.
+   * Con 20 se marcan 2 de 8 días. Con 15 se marcarían 4 de 8 y el aviso
+   * se vuelve papel tapiz: si sale la mitad de las veces, deja de
+   * querer decir algo.
+   *
+   * OJO: el umbral está puesto sobre n=8 días. Es poco. Si al mirarlo
+   * en otra época marca casi todo o casi nada, hay que remedirlo — la
+   * receta está en ACCURACY.md.
    */
-  desacuerdoModelosPts: 8,
+  desacuerdoModelosPts: 20,
 
   /**
    * Último día de anticipación en que el pronóstico le gana de verdad al

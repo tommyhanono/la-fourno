@@ -119,6 +119,11 @@ export function puntosViento(kt: number, cal: Calibracion = CALIBRACION): number
   return cal.pesos.viento * curvaFrac(cal.viento.curva, 'kt', kt)
 }
 
+/** Lo mismo para el sol, y por la misma razón: la curva no es recta. */
+export function puntosSol(nubePct: number, cal: Calibracion = CALIBRACION): number {
+  return cal.pesos.sol * curvaFrac(cal.sol.curva, 'pct', nubePct)
+}
+
 const r1 = (x: number) => Math.round(x * 10) / 10
 
 /** Score de navegación para un bloque de 2 h en el corredor. */

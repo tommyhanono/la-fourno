@@ -265,6 +265,32 @@ dormidas en días buenos, y eso también se prueba.
 
 ---
 
+### CERRADO — El aviso de desacuerdo ahora también mira el sol
+
+**Medido el 1-sep-2026.** El aviso miraba solo el viento, por ser el
+45 % del score. Era un error: los modelos se contradicen **más en las
+nubes**. Desacuerdo entre ECMWF, GFS e ICON en la jornada, en puntos:
+
+| | mediana | máximo |
+|---|---|---|
+| viento (de 45) | ~5 | 11.4 |
+| **nubosidad (de 30)** | **10.5** | **21.6** |
+
+El caso que lo decidió: para el 2-sep —el día que la app estaba
+recomendando— ECMWF veía 28 % de nubes, GFS 95 % e ICON 46 %. La app
+enseñaba ese número sin decir nada, y el sol es el segundo criterio de
+Tommy.
+
+Ahora el desacuerdo suma viento + sol en la misma moneda (de 75) y el
+umbral se recalibró a **20** (antes 8 sobre 45). Verificado en vivo:
+marca **1 de 8 días**, y ese día es el veredicto — o sea que la app
+marca su propia recomendación como no firme cuando corresponde.
+
+**Ojo:** el umbral se puso sobre n=8 días. Es poco. Si en otra época
+marca casi todo o casi nada, hay que remedirlo.
+
+---
+
 ### CERRADO — Guard de datos parciales
 
 `ResultadoScore` ahora trae `faltan[]` y `pesoFaltante`, no solo un
@@ -348,7 +374,8 @@ antes.
 - CAPE en Panamá, agosto: mediana **1740**, p90 2360 J/kg
 - MAE del viento: **2.38 kt a 1 día**, **3.48 kt a 7 días** (verdad ERA5)
 - Desfase de la marea CMEMS antes de corregir: **−27 min** en Panamá
-- Desacuerdo entre modelos: marca **2 de 7 días** con umbral 8 pts
+- Desacuerdo entre modelos (viento+sol, de 75): marca **1 de 8 días** con umbral 20
+- Desacuerdo en nubosidad: mediana **10.5 pts de 30** — el doble que el de viento
 
 ---
 

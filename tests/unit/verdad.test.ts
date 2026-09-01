@@ -14,6 +14,7 @@ import {
   DIAS_ATRAS,
 } from '../../src/lib/verdad'
 import { jornadasSemana } from '../../src/lib/ventanas'
+import { scoreBloque } from '../../src/lib/score'
 import { datosSinteticos, DIA_BASE } from '../fixtures/genera'
 
 /** localStorage de mentira: jsdom no está en este proyecto. */
@@ -66,6 +67,19 @@ describe('archivo de pronósticos', () => {
     const nuevos = archivarSemana(semana())
     expect(nuevos.length).toBeGreaterThan(0)
     expect(leerArchivo().length).toBeGreaterThan(antes)
+  })
+
+  it('el resumen guarda los INSUMOS, para poder reproducir el score', () => {
+    // Es lo que permite preguntarse después "¿con pesoPico en 0.35
+    // habría acertado?". Sin la entrada solo se sabe que la app dijo 72.
+    const r = resumir(semana()[0], DIA_BASE)
+    expect(r.entrada).toBeDefined()
+    expect(typeof r.entrada.vientoKt).toBe('number')
+    expect(r.entrada).toHaveProperty('nubosidadPct')
+    expect(r.entrada).toHaveProperty('olaM')
+    expect(r.entrada).toHaveProperty('mareaRel')
+    // y el score archivado tiene que ser reproducible con esa entrada
+    expect(scoreBloque(r.entrada).total).toBe(r.score)
   })
 
   it('el resumen guarda el desglose, no solo el total', () => {

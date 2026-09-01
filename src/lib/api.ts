@@ -71,28 +71,35 @@ export function urlMarine(): string {
   )
 }
 
-/**
- * Los tres modelos globales por separado, SOLO viento. Sirve para una
- * cosa: saber cuánto se contradicen entre ellos.
- *
- * El pronóstico normal (best_match) da un número y punto. Pero medido
- * el 31-ago-2026 sobre el corredor, el viento típico de jornada del
- * 1-sep era 10.2 kt según ECMWF, 10.8 según GFS y 5.8 según ICON: el
- * mismo día vale 34 o 44 puntos de viento según a quién le creas. Sin
- * esto la app enseña "68/100" con la misma cara en un día firme que en
- * uno donde los modelos no se ponen de acuerdo.
- *
- * Solo viento porque es el 45 % del score y el que más se mueve. Pesa
- * ~58 KB y la request es opcional: si falla, la app anda igual y
- * simplemente no marca desacuerdo.
- */
+/** Los tres modelos globales que se comparan entre sí. */
 export const MODELOS = ['ecmwf_ifs025', 'gfs_seamless', 'icon_seamless'] as const
 
+/**
+ * Viento y nubosidad de cada modelo por separado. Sirve para una sola
+ * cosa: saber cuánto se contradicen entre ellos.
+ *
+ * El pronóstico normal (best_match) da un número y punto. Pero el
+ * 1-sep-2026 el viento típico de jornada del corredor era 10.2 kt según
+ * ECMWF, 10.8 según GFS y 5.8 según ICON: el mismo día vale 34 o 44
+ * puntos de viento según a quién le creas. Sin esto la app enseña
+ * "68/100" con la misma cara en un día firme que en uno que se mueve.
+ *
+ * SE PIDE TAMBIÉN LA NUBOSIDAD, y no es un adorno. Al principio era
+ * solo viento, por ser el 45 % del score. Fue un error: los modelos se
+ * contradicen MÁS en las nubes. Ese mismo día, para el 2-sep —que era
+ * justo el que la app recomendaba— ECMWF veía 28 % de nubes, GFS 95 % e
+ * ICON 46 %: 21.6 puntos de los 30 que pesa el sol, contra una mediana
+ * de ~5 en viento. Y el sol es el segundo criterio de Tommy. El aviso
+ * estaba ciego a la mayor fuente de incertidumbre que tenía enfrente.
+ *
+ * Pesa ~110 KB y la request es opcional: si falla, la app anda igual y
+ * simplemente no marca desacuerdo.
+ */
 export function urlModelos(): string {
   const { lats, lons } = coords()
   return (
     `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
-    `&hourly=wind_speed_10m&timezone=${TZ}&forecast_days=${DIAS}` +
+    `&hourly=wind_speed_10m,cloud_cover&timezone=${TZ}&forecast_days=${DIAS}` +
     `&wind_speed_unit=kn&cell_selection=sea&models=${MODELOS.join(',')}`
   )
 }

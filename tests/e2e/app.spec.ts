@@ -230,6 +230,7 @@ test.describe('La Fourno', () => {
     })
 
     // En un navegador limpio siempre hay días sin contestar atrás.
+    // toHaveCount reintenta: la fila se monta un render después.
     const fila = page.locator('.verdad')
     await expect(fila).toHaveCount(1)
     await expect(fila.locator('.verdad-pregunta')).toContainText('¿Saliste el')
@@ -265,6 +266,7 @@ test.describe('La Fourno', () => {
     await expect(page.locator('.badge-score strong').first()).toHaveText(/^\d+$/, {
       timeout: 15_000,
     })
+    await expect(page.locator('.verdad')).toHaveCount(1)
     const primerDia = await page.locator('.verdad-pregunta').textContent()
     await page.locator('.verdad').getByRole('button', { name: 'No salí' }).click()
     await page.reload()
@@ -285,6 +287,10 @@ test.describe('La Fourno', () => {
     await expect(page.locator('.badge-score strong').first()).toHaveText(/^\d+$/, {
       timeout: 15_000,
     })
+    // Esperar la FILA, no los badges: se monta en un efecto, o sea un
+    // render después, y contar antes daba cero de vez en cuando. Este
+    // expect reintenta solo; count() no.
+    await expect(page.locator('.verdad')).toHaveCount(1)
     const botones = page.locator('.verdad .btn-verdad')
     const n = await botones.count()
     expect(n).toBeGreaterThan(0)
