@@ -125,6 +125,35 @@ export const CALIBRACION = {
     bajaExtremaPenal: 6,
     vaciandoPenal: 3, // llegando con marea vaciando: pequeña resta
     llenandoBono: 2, // llegando con marea llenando: pequeño bono
+
+    /**
+     * Minutos que hay que SUMARLE a la hora de cada muestra de CMEMS.
+     * El modelo adelanta la marea, y no es poco.
+     *
+     * Medido el 1-sep-2026 contra las predicciones armónicas oficiales
+     * de NOAA (`scripts/medir-marea.mjs`), jun-ago 2026:
+     *
+     *   Balboa (Panamá)      n=356  −27.0 min  (p10 −35.0, p90 −19.4)
+     *   Puntarenas (CR)      n=356  −33.7
+     *   La Libertad (EC)     n=356  −33.3
+     *   San Cristóbal (GAL)  n=356  −29.9
+     *
+     * Los 356 extremos de Balboa dieron TODOS negativos, de −40.6 a
+     * −3.5 min. Que el mismo sesgo salga a 1900 km, en Galápagos y en
+     * océano abierto, descarta que sea la geografía del Golfo: es fase
+     * del modelo. El valor de ~30 min sugiere una convención de
+     * etiquetado (la muestra de la hora H sería en realidad el promedio
+     * de H a H+1, o sea centrada en H+30 min).
+     *
+     * Se usa el número medido en Panamá, que es donde se navega.
+     * Efecto: el error típico del instante de pleamar/bajamar baja de
+     * 27.0 a 3.6 min, y el p90 de 35.0 a 10.5.
+     *
+     * SI OPEN-METEO ARREGLA LA CONVENCIÓN, esto queda sobrando y habría
+     * que ponerlo en 0. La forma de saberlo es volver a correr
+     * `scripts/medir-marea.mjs`. Ver ACCURACY.md.
+     */
+    desfaseModeloMin: 27,
   },
 
   seguridad: {
@@ -195,6 +224,30 @@ export const CALIBRACION = {
    * si sale casi siempre, deja de querer decir algo.
    */
   desacuerdoModelosPts: 8,
+
+  /**
+   * Último día de anticipación en que el pronóstico le gana de verdad al
+   * simple promedio de la temporada. Más allá, la app lo dice.
+   *
+   * Medido el 31-ago-2026 (`scripts/medir-skill.mjs`): corredor
+   * marina+Contadora, horas 9-16, verdad = ERA5, ventana 1-jun a
+   * 20-ago-2026, n≈600 por horizonte, climatología de 2019-2025.
+   * Comparación PAREADA del MAE contra climatología, en nudos:
+   *
+   *   -1d −0.838 ±0.111   -2d −0.558 ±0.099   -3d −0.429 ±0.087
+   *   -4d −0.213 ±0.092   -5d −0.195 ±0.085   ← hasta acá gana el modelo
+   *   -6d +0.049 ±0.081   -7d +0.146 ±0.085   ← empate estadístico
+   *
+   * O sea: del día 6 en adelante el pronóstico no aporta nada por
+   * encima de "así viene esta época del año". Los días se siguen
+   * mostrando —Tommy pidió ver el domingo que viene— pero sin fingir
+   * una precisión que la medición no respalda.
+   *
+   * OJO: medido en temporada LLUVIOSA. En seca los nortes son forzados
+   * por sinóptica y la predictibilidad podría llegar más lejos. Ver
+   * ACCURACY.md antes de mover este número.
+   */
+  skillHorizonteDias: 5,
 
   /** Etiquetas de calidad del score total. */
   niveles: [

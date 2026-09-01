@@ -19,7 +19,7 @@ import {
   type ResultadoScore,
 } from './score'
 import { serieMarea, nivelRelativo, tendenciaEn, type SerieMarea } from './tide'
-import { parsePanama } from './time'
+import { parsePanama, claveDia } from './time'
 
 const idx = (id: string) => PUNTOS.findIndex((p) => p.id === id)
 
@@ -118,6 +118,18 @@ export interface DiaJornada {
    * firme todavía.
    */
   desacuerdo: number | null
+  /**
+   * Días de anticipación: 0 = hoy, 1 = mañana. Se usa para saber si el
+   * pronóstico de ese día todavía le gana al promedio de la temporada
+   * (ver `calibracion.skillHorizonteDias`).
+   */
+  anticipacionDias: number
+  /**
+   * true si a esa distancia el pronóstico ya no supera medidamente a la
+   * climatología. El día se muestra igual; solo deja de venderse como
+   * más preciso de lo que se pudo comprobar.
+   */
+  fueraDeSkill: boolean
   /** Amanece / se pone, del día. */
   sol: { sale: Date; sePone: Date } | null
 }
@@ -331,8 +343,15 @@ export function jornadasSemana(datos: DatosApp): DiaJornada[] {
 
   const ahora = new Date()
   const out: DiaJornada[] = []
+  // Medianoche de hoy en Panamá, para medir anticipación en días de
+  // calendario. No se usa el índice del arreglo: si los datos vienen del
+  // caché (hasta 6 h) el primer día podría ya no ser hoy, y entonces
+  // "día 6" se marcaría mal.
+  const hoy0 = parsePanama(`${claveDia(ahora)}T00:00`)
+
   for (let d = 0; d < f0.daily.time.length; d++) {
     const base = parsePanama(`${f0.daily.time[d]}T00:00`)
+    const anticipacion = Math.round((base.getTime() - hoy0.getTime()) / 86400_000)
     const inicio = new Date(base.getTime() + desdeHora * 3600_000)
     const fin = new Date(base.getTime() + hastaHora * 3600_000)
     if (fin <= ahora) continue // jornada de hoy ya terminada
@@ -375,6 +394,8 @@ export function jornadasSemana(datos: DatosApp): DiaJornada[] {
       ),
       enCurso: inicio <= ahora,
       desacuerdo: desacuerdoModelos(datos, inicio, horas, mejor.punto),
+      anticipacionDias: anticipacion,
+      fueraDeSkill: anticipacion > CALIBRACION.skillHorizonteDias,
       sol: {
         sale: parsePanama(f0.daily.sunrise[d]),
         sePone: parsePanama(f0.daily.sunset[d]),

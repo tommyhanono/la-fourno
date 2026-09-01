@@ -149,7 +149,7 @@ function Veredicto({ dia, unidades }: { dia: DiaJornada; unidades: Unidades }) {
       {/* Misma regla que la tarjeta, sin excepciones: el veredicto no
           puede afirmar algo que la tarjeta de abajo se calla. */}
       {diceForma(dia) && <p className="veredicto-forma">{fraseForma(dia.forma)}</p>}
-      {dudoso(dia) && <p className="veredicto-dudoso">{TEXTO_DUDOSO}</p>}
+      {salvedad(dia) && <p className="veredicto-dudoso">{salvedad(dia)}</p>}
       <Desglose score={dia.score} id="desglose-veredicto" />
     </div>
   )
@@ -216,7 +216,7 @@ function TarjetaDia({
 
       {diceForma(d) && <p className="dia-forma">{fraseForma(d.forma)}</p>}
 
-      {dudoso(d) && <p className="dia-dudoso">{TEXTO_DUDOSO}</p>}
+      {salvedad(d) && <p className="dia-dudoso">{salvedad(d)}</p>}
 
       <p className="dia-extra">
         {d.tormentaDesde && (
@@ -264,10 +264,27 @@ function dudoso(d: DiaJornada): boolean {
  *    fueron exactamente los 2 marcados como dudosos.
  */
 function diceForma(d: DiaJornada): boolean {
-  return !d.score.peligro && !d.enCurso && !dudoso(d)
+  return !d.score.peligro && !d.enCurso && !dudoso(d) && !d.fueraDeSkill
 }
 
-const TEXTO_DUDOSO = 'Los modelos todavía no coinciden en este día.'
+export const TEXTO_DUDOSO = 'Los modelos todavía no coinciden en este día.'
+export const TEXTO_FUERA_SKILL =
+  'A esta distancia el pronóstico ya no le gana al promedio de la época. Tómalo como una idea, no como un dato.'
+
+/**
+ * La salvedad que corresponde mostrar, o null si el día está firme.
+ *
+ * Solo UNA por tarjeta. Las dos son ciertas a la vez en algunos días,
+ * pero apilarlas convierte la tarjeta en un descargo legal. Manda la de
+ * horizonte porque es estructural —a 6+ días no hay skill medible, sin
+ * importar si los modelos coinciden— mientras que el desacuerdo es una
+ * propiedad de ese día puntual.
+ */
+function salvedad(d: DiaJornada): string | null {
+  if (d.fueraDeSkill) return TEXTO_FUERA_SKILL
+  if (dudoso(d)) return TEXTO_DUDOSO
+  return null
+}
 
 function fraseForma(f: FormaDia): string {
   if (f === 'temprano') return 'Está mejor temprano: la tarde se pone peor.'

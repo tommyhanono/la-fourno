@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { serieMarea, nivelEn, tendenciaEn, extremos, nivelRelativo } from '../../src/lib/tide'
 import { parsePanama } from '../../src/lib/time'
+import { CALIBRACION } from '../../src/config/calibracion'
 
 // Marea sintética semidiurna tipo Balboa: período 12.42 h, amplitud 2 m.
 // Pleamar exacta en t=0 (medianoche Panamá del 2026-08-10).
@@ -40,9 +41,16 @@ describe('marea estimada', () => {
     // en 24 h de marea semidiurna: 3-4 extremos
     expect(ext.length).toBeGreaterThanOrEqual(3)
     expect(ext.length).toBeLessThanOrEqual(4)
-    // la primera bajamar teórica cae en t = PERIODO/2 = 6.21 h
+    // La primera bajamar teórica cae en t = PERIODO/2 = 6.21 h, MÁS el
+    // desfase con que `serieMarea` corrige el adelanto de CMEMS: acá la
+    // serie es sintética y perfecta, pero pasa por el mismo camino que
+    // la real, así que sale corrida igual. Lo que este test mide es la
+    // precisión del vértice de la parábola, no la calibración.
     const bajamar = ext.find((e) => e.tipo === 'bajamar')!
-    const teoricoMs = parsePanama('2026-08-10T00:00').getTime() + (PERIODO_H / 2) * 3600_000
+    const teoricoMs =
+      parsePanama('2026-08-10T00:00').getTime() +
+      (PERIODO_H / 2) * 3600_000 +
+      CALIBRACION.marea.desfaseModeloMin * 60_000
     expect(Math.abs(bajamar.time.getTime() - teoricoMs)).toBeLessThan(25 * 60_000)
     expect(bajamar.nivel).toBeCloseTo(-2, 1)
   })

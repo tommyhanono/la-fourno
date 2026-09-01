@@ -178,6 +178,46 @@ describe('jornadas día por día', () => {
   })
 })
 
+describe('horizonte de skill', () => {
+  beforeEach(() => {
+    vi.setSystemTime(new Date(`${DIA_BASE}T05:00:00-05:00`))
+  })
+
+  it('la anticipación se cuenta en días de calendario desde hoy', () => {
+    const dias = jornadasSemana(datosSinteticos())
+    expect(dias.find((d) => d.clave === DIA_BASE)!.anticipacionDias).toBe(0)
+    expect(dias.find((d) => d.clave === '2026-08-11')!.anticipacionDias).toBe(1)
+    expect(dias.find((d) => d.clave === '2026-08-17')!.anticipacionDias).toBe(7)
+  })
+
+  it('los días dentro del horizonte medido NO se marcan', () => {
+    const dias = jornadasSemana(datosSinteticos())
+    for (const d of dias) {
+      if (d.anticipacionDias <= CALIBRACION.skillHorizonteDias) {
+        expect(d.fueraDeSkill).toBe(false)
+      }
+    }
+  })
+
+  it('pasado el horizonte sí, porque ahí el modelo empata con climatología', () => {
+    const dias = jornadasSemana(datosSinteticos())
+    const lejanos = dias.filter((d) => d.anticipacionDias > CALIBRACION.skillHorizonteDias)
+    expect(lejanos.length).toBeGreaterThan(0)
+    expect(lejanos.every((d) => d.fueraDeSkill)).toBe(true)
+  })
+
+  it('la anticipación no depende del índice del arreglo, sino de la fecha', () => {
+    // Si el dato viene del caché cruzando la medianoche, el primer día
+    // del pronóstico ya no es hoy. Contando por índice, "día 6" se
+    // marcaría mal; contando por fecha, no.
+    vi.setSystemTime(new Date(`2026-08-11T05:00:00-05:00`))
+    const dias = jornadasSemana(datosSinteticos())
+    const hoy = dias.find((d) => d.clave === '2026-08-11')!
+    expect(hoy.anticipacionDias).toBe(0)
+    expect(dias.find((d) => d.clave === '2026-08-17')!.anticipacionDias).toBe(6)
+  })
+})
+
 describe('desacuerdo entre modelos', () => {
   beforeEach(() => {
     vi.setSystemTime(new Date(`${DIA_BASE}T05:00:00-05:00`))

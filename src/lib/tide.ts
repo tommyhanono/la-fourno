@@ -26,14 +26,29 @@
 
 import type { ExtremoMarea } from './types'
 import { parsePanama } from './time'
+import { CALIBRACION } from '../config/calibracion'
 
 export interface SerieMarea {
   times: Date[]
   niveles: (number | null)[]
 }
 
+/**
+ * Arma la serie corrigiendo el adelanto del modelo.
+ *
+ * CMEMS entrega la marea adelantada ~27 min en Panamá (medido contra la
+ * tabla oficial de NOAA, n=356; ver `calibracion.marea.desfaseModeloMin`).
+ * La corrección se aplica UNA vez acá, sobre los tiempos, para que todo
+ * lo que cuelga de la serie —nivel actual, tendencia, extremos, nivel
+ * relativo— quede corrido igual. Si se corrigiera solo en `extremos`,
+ * la curva del UI y las horas de pleamar se contradirían.
+ */
 export function serieMarea(timesIso: string[], niveles: (number | null)[]): SerieMarea {
-  return { times: timesIso.map(parsePanama), niveles }
+  const desfaseMs = CALIBRACION.marea.desfaseModeloMin * 60_000
+  return {
+    times: timesIso.map((t) => new Date(parsePanama(t).getTime() + desfaseMs)),
+    niveles,
+  }
 }
 
 /** Nivel interpolado linealmente en el instante t. null si no hay dato. */
