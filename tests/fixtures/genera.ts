@@ -101,6 +101,8 @@ export function marineSintetico(): PuntoMarine[] {
       wave_period: [] as (number | null)[],
       wave_direction: [] as (number | null)[],
       sea_level_height_msl: [] as (number | null)[],
+      ocean_current_velocity: [] as (number | null)[],
+      ocean_current_direction: [] as (number | null)[],
     }
     for (let i = 0; i < times.length; i++) {
       const dia = Math.floor(i / 24)
@@ -110,6 +112,14 @@ export function marineSintetico(): PuntoMarine[] {
       hourly.sea_level_height_msl.push(
         Math.round(2 * Math.cos((2 * Math.PI * i) / 12.42) * 100) / 100,
       )
+      // Corriente. Ojo con la convención, que es donde se equivoca todo
+      // el mundo: el viento del fixture viene DE 190°, o sea que sopla
+      // HACIA 10°. Para que vayan en contra, la corriente tiene que ir
+      // hacia ~190°; si va hacia 10° van juntos.
+      //   · JUEVES (día 3): corriente fuerte hacia 190° → EN CONTRA.
+      //   · resto: corriente floja hacia 10° → a favor, no se marca.
+      hourly.ocean_current_velocity.push(dia === 3 ? 2.2 : 0.6)
+      hourly.ocean_current_direction.push(dia === 3 ? 190 : 10)
     }
     return { latitude: p.lat, longitude: p.lon, hourly }
   })

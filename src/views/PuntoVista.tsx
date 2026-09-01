@@ -284,7 +284,11 @@ function VistaPlaya({
                 {d.uvMax != null ? ` · UV ${Math.round(d.uvMax)}` : ''}
               </span>
               <BadgeScore score={d.score} />
-              <Desglose score={d.score} id={`playa-${d.clave}`} />
+              <Desglose
+                score={d.score}
+                id={`playa-${d.clave}`}
+                anticipacionDias={d.anticipacionDias}
+              />
               {/* Misma honestidad que el lado del bote: pasado el
                   horizonte medido el número deja de ser mejor que el
                   promedio de la época, y eso no depende de si vas en

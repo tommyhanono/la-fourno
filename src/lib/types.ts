@@ -41,6 +41,9 @@ export interface HorarioMarine {
   wave_period: (number | null)[]
   wave_direction: (number | null)[]
   sea_level_height_msl: (number | null)[]
+  /** Corriente: velocidad en km/h y rumbo HACIA donde va, en grados. */
+  ocean_current_velocity: (number | null)[]
+  ocean_current_direction: (number | null)[]
 }
 
 export interface PuntoMarine {

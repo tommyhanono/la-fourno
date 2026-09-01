@@ -39,11 +39,21 @@ const HOURLY_FORECAST = [
 // A propósito NO se piden wind_wave_* ni swell_wave_*: se evaluaron el
 // 31-ago-2026 y no aportan. wave_period ya es media ponderada por
 // energía y baja sola cuando el chop domina. Ver score.ts ('mar-corto').
+// ocean_current_* sirve para una cosa concreta: detectar viento contra
+// corriente, que arruina el cruce aunque el viento sea bajo.
+// OJO CON EL ALCANCE (medido 1-sep-2026, 90 días, 2160 horas-punto):
+// la corriente que el modelo ve en el corredor es DÉBIL — p50 0.49 kt,
+// máximo 1.24 kt. Lo que de verdad revuelve el mar son los pasos entre
+// islas, donde la corriente acelera a varios nudos, y esos el modelo NO
+// los resuelve a ~11 km de celda. O sea: esto marca el caso de mar
+// abierto y es estructuralmente ciego a los pasos.
 const HOURLY_MARINE = [
   'wave_height',
   'wave_period',
   'wave_direction',
   'sea_level_height_msl',
+  'ocean_current_velocity',
+  'ocean_current_direction',
 ].join(',')
 
 function coords(): { lats: string; lons: string } {

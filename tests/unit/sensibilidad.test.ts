@@ -184,6 +184,104 @@ const PRUEBAS: { nombre: string; cal: Cal; pp?: number; seguridad?: boolean }[] 
   },
 ]
 
+/**
+ * ¿Qué variable DECIDE el score en la práctica?
+ *
+ * No es lo mismo que el peso nominal. Una variable puede pesar 45 y no
+ * decidir nada si casi no varía entre días; y una de peso 30 puede
+ * mandar si se mueve mucho. La forma de saberlo es neutralizarla —
+ * ponerle a todos los días su valor mediano— y ver cuánto se desordena
+ * el ranking. La que más lo desordena es la que estaba decidiendo.
+ */
+function medianaDe(f: (d: DiaCrudo) => number | null): number {
+  const v = crudos.map(f).filter((x): x is number => x != null).sort((a, b) => a - b)
+  return v[Math.floor(v.length / 2)]
+}
+
+function neutralizar(campo: 'viento' | 'sol' | 'ola' | 'racha' | 'viento+racha') {
+  const medV = medianaDe((d) => d.vientoMedio)
+  const medP = medianaDe((d) => d.vientoPico)
+  const medN = medianaDe((d) => d.nubosidadPct)
+  const medOM = medianaDe((d) => d.olaMedia)
+  const medOP = medianaDe((d) => d.olaPico)
+  const medR = medianaDe((d) => d.rachaPico)
+  return (d: DiaCrudo): DiaCrudo => ({
+    ...d,
+    ...(campo === 'viento' || campo === 'viento+racha'
+      ? { vientoMedio: medV, vientoPico: medP }
+      : {}),
+    ...(campo === 'racha' || campo === 'viento+racha' ? { rachaPico: medR } : {}),
+    ...(campo === 'sol' ? { nubosidadPct: medN } : {}),
+    ...(campo === 'ola' ? { olaMedia: medOM, olaPico: medOP } : {}),
+  })
+}
+
+describe('qué variable decide el score en la práctica', () => {
+  it('reporta cuánto desordena el ranking neutralizar cada variable', () => {
+    const orden = (ds: DiaCrudo[]) =>
+      [...ds]
+        .map((d) => ({ dia: d.dia, s: puntaje(d, CALIBRACION) }))
+        .sort((a, b) => b.s - a.s || a.dia.localeCompare(b.dia))
+        .map((x) => x.dia)
+    const base = orden(crudos)
+
+    console.log(`\n¿QUÉ DECIDE EL SCORE? — ${crudos.length} días reales\n`)
+    console.log('al neutralizar   | Δscore | posiciones movidas | semanas que cambian')
+    console.log('-----------------|--------|--------------------|--------------------')
+    const filas: { campo: string; mov: number }[] = []
+    for (const campo of ['viento+racha', 'sol', 'viento', 'racha', 'ola'] as const) {
+      const mod = crudos.map(neutralizar(campo))
+      const r = orden(mod)
+      const p2 = new Map(r.map((d, i) => [d, i]))
+      const mov =
+        base.reduce((a, d, i) => a + Math.abs((p2.get(d) ?? i) - i), 0) / base.length
+      const dif =
+        mod.reduce(
+          (a, d, i) => a + Math.abs(puntaje(d, CALIBRACION) - puntaje(crudos[i], CALIBRACION)),
+          0,
+        ) / mod.length
+      let semanas = 0
+      for (let w = 0; w * 7 + 7 <= crudos.length; w++) {
+        const g = (ds: DiaCrudo[]) =>
+          ds
+            .slice(w * 7, w * 7 + 7)
+            .map((d) => ({ dia: d.dia, s: puntaje(d, CALIBRACION) }))
+            .sort((a, b) => b.s - a.s || a.dia.localeCompare(b.dia))[0].dia
+        if (g(mod) !== g(crudos)) semanas++
+      }
+      filas.push({ campo, mov })
+      console.log(
+        `${campo.padEnd(16)} | ${dif.toFixed(2).padStart(6)} | ${mov.toFixed(2).padStart(18)} | ${String(semanas).padStart(5)}/${SEMANAS}`,
+      )
+    }
+    filas.sort((a, b) => b.mov - a.mov)
+    console.log(`\nLa que más decide: ${filas[0].campo}. Orden: ${filas.map((f) => f.campo).join(' > ')}`)
+    console.log('Criterio declarado de Tommy: poco viento primero, buen sol después.')
+
+    // EL CRITERIO de Tommy es "poco viento" — y eso incluye las
+    // ráfagas, que son viento. La comparación justa es la familia del
+    // viento contra el sol, no el viento sostenido solo.
+    const familia = filas.find((f) => f.campo === 'viento+racha')!
+    const sol = filas.find((f) => f.campo === 'sol')!
+    console.log(
+      `\nFamilia del viento (sostenido + ráfaga): ${familia.mov.toFixed(2)} · sol: ${sol.mov.toFixed(2)}`,
+    )
+    expect(familia.mov).toBeGreaterThan(sol.mov)
+  })
+
+  it('playa y navegación ponderan distinto, y de forma coherente', () => {
+    // En playa manda el sol y la lluvia; la ola ni siquiera entra. En
+    // navegación manda el viento. Son criterios distintos a propósito.
+    const p = CALIBRACION.playa.pesos
+    expect(p.sol + p.lluvia).toBeGreaterThan(p.viento)
+    expect(p.sol).toBeGreaterThan(p.viento)
+    expect(Object.keys(p)).not.toContain('ola')
+    const n = CALIBRACION.pesos
+    expect(n.viento).toBeGreaterThan(n.sol)
+    expect(n.viento).toBeGreaterThan(n.ola + n.marea)
+  })
+})
+
 describe('sensibilidad de las perillas (180 días reales, dos temporadas)', () => {
   it('reporta cuánto mueve cada perilla', () => {
     const scores = [...baseScores.values()]

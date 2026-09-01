@@ -20,6 +20,7 @@ import { Header, AvisoSeguridad } from '../components/Marco'
 import { BadgeScore, Desglose } from '../components/Desglose'
 import { Icono } from '../components/Icono'
 import { cieloDeCodigo, textoCieloDia } from '../lib/wmo'
+import { elegirMejorDia, motivoSinVeredicto, dudoso } from '../lib/veredicto'
 import { FilaVerdad } from '../components/FilaVerdad'
 import { archivarSemana, subirArchivo, diaAPreguntar, sincronizar } from '../lib/verdad'
 
@@ -32,19 +33,7 @@ export function Home({ estado, unidades }: { estado: EstadoDatos; unidades: Unid
   // El mejor día salible de la semana: es el veredicto de arriba y el
   // sello de la tarjeta de abajo. La MISMA respuesta en los dos
   // lugares, nunca dos números distintos.
-  const mejor = useMemo(() => {
-    const salibles = semana.filter((d) => !d.score.peligro)
-    if (salibles.length === 0) return null
-    // Un día al que le faltan datos NO compite contra días completos:
-    // sin el dato de mar pierde 25 puntos de arranque (ola 15 + marea
-    // 10), así que perdería siempre por una razón que no tiene nada que
-    // ver con el clima. Si hay días completos, el veredicto sale de
-    // ellos; si NINGUNO está completo, se compara entre parciales, que
-    // al menos están todos igual de mancos.
-    const completos = salibles.filter((d) => d.score.pesoFaltante === 0)
-    const candidatos = completos.length > 0 ? completos : salibles
-    return candidatos.reduce((a, b) => (b.score.total > a.score.total ? b : a))
-  }, [semana])
+  const mejor = useMemo(() => elegirMejorDia(semana), [semana])
 
   // Qué día toca preguntar. Es estado y no memo a propósito: después de
   // contestar hay que volver a preguntárselo a localStorage, y un memo
@@ -81,6 +70,19 @@ export function Home({ estado, unidades }: { estado: EstadoDatos; unidades: Unid
             <CargandoOFallo estado={estado} />
           ) : mejor ? (
             <Veredicto dia={mejor} unidades={unidades} />
+          ) : motivoSinVeredicto(semana) === 'ninguno-decidido' ? (
+            /* Hay días salibles, pero en ninguno los modelos coinciden lo
+               suficiente. Decir "esta semana no pinta" sería falso: la
+               semana puede estar bien, lo que no está es decidida. */
+            <div className="tarjeta vacio alto" role="status">
+              <Icono nombre="alerta" size={28} />
+              <p>
+                <strong>Todavía no hay un mejor día.</strong> Los modelos no
+                coinciden lo suficiente en ninguno como para coronarlo. Mira el
+                día por día aquí abajo y vuelve mañana: a menos distancia se
+                suelen poner de acuerdo.
+              </p>
+            </div>
           ) : (
             <div className="tarjeta vacio alto" role="status">
               <Icono nombre="alerta" size={28} />
@@ -195,7 +197,11 @@ function Veredicto({ dia, unidades }: { dia: DiaJornada; unidades: Unidades }) {
           </p>
         )
       })()}
-      <Desglose score={dia.score} id="desglose-veredicto" />
+      <Desglose
+        score={dia.score}
+        id="desglose-veredicto"
+        anticipacionDias={dia.anticipacionDias}
+      />
     </div>
   )
 }
@@ -270,6 +276,16 @@ function TarjetaDia({
         )
       })()}
 
+      {d.contraCorriente.length > 0 && (
+        <p className="dia-contracorriente">
+          <strong>Viento contra corriente</strong>{' '}
+          {d.contraCorriente
+            .map((v) => `de ${horaMuyCorta(v.desde)} a ${horaMuyCorta(v.hasta)}`)
+            .join(' y ')}
+          : el mar se para aunque el viento sea bajo.
+        </p>
+      )}
+
       <p className="dia-extra">
         {d.tormentaDesde && (
           <span className="dia-tormenta">
@@ -286,19 +302,15 @@ function TarjetaDia({
         )}
       </p>
 
-      <Desglose score={d.score} id={`dia-${d.clave}`} />
+      <Desglose
+        score={d.score}
+        id={`dia-${d.clave}`}
+        anticipacionDias={d.anticipacionDias}
+      />
     </li>
   )
 }
 
-/**
- * Un día es dudoso cuando los tres modelos globales no coinciden lo
- * suficiente como para cambiar la respuesta. No dice que el día sea
- * malo: dice que el número todavía no está firme.
- */
-function dudoso(d: DiaJornada): boolean {
-  return d.desacuerdo != null && d.desacuerdo >= CALIBRACION.desacuerdoModelosPts
-}
 
 /**
  * Cuándo la app se anima a decir si el día está mejor temprano o por

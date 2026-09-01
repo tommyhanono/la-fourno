@@ -18,7 +18,7 @@
 // viven solo en el teléfono, ninguna sesión futura puede leerlos para
 // calibrar, que es el punto entero.
 
-import { claveDia, horaPanama } from './time'
+import { claveDia, horaPanama, ahoraPanama } from './time'
 import { CALIBRACION } from '../config/calibracion'
 import type { DiaJornada } from './ventanas'
 import type { EntradaBloque } from './score'
@@ -124,7 +124,10 @@ export function resumir(d: DiaJornada, emitidoEl: string): ResumenPronostico {
  * llama una vez por día: si ya hay archivo de hoy, no hace nada.
  * Devuelve lo que guardó nuevo (para sincronizar).
  */
-export function archivarSemana(semana: DiaJornada[], ahora = new Date()): ResumenPronostico[] {
+export function archivarSemana(
+  semana: DiaJornada[],
+  ahora = ahoraPanama(),
+): ResumenPronostico[] {
   if (semana.length === 0) return []
   const hoy = claveDia(ahora)
   const previo = leerArchivo()
@@ -161,7 +164,7 @@ export function pronosticoDe(dia: string): ResumenPronostico | undefined {
  * atrás de DIAS_ATRAS — de un miércoles de hace una semana nadie se
  * acuerda, y una respuesta inventada es peor que ninguna.
  */
-export function diaAPreguntar(ahora = new Date()): string | null {
+export function diaAPreguntar(ahora = ahoraPanama()): string | null {
   const contestados = new Set(leerRegistros().map((r) => r.dia))
   const finJornada = CALIBRACION.jornada.hastaHora
   for (let i = 0; i <= DIAS_ATRAS; i++) {
@@ -243,7 +246,16 @@ async function rpc(fn: string, body: Record<string, unknown>): Promise<boolean> 
         apikey: ANON!,
         Authorization: `Bearer ${ANON!}`,
       },
-      body: JSON.stringify({ p_token: TOKEN, ...body }),
+      // El origen lo valida el SERVIDOR contra una lista. No es que se
+      // confíe en lo que dice el cliente: es que el navegador no deja
+      // falsear location.origin, y quien llame el RPC a mano desde
+      // fuera tendría que adivinar el origen exacto permitido. La
+      // defensa real está en el RPC, no acá.
+      body: JSON.stringify({
+        p_token: TOKEN,
+        p_origen: globalThis.location?.origin ?? '',
+        ...body,
+      }),
       signal: AbortSignal.timeout(10_000),
     })
     return res.ok

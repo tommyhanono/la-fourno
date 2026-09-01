@@ -1,0 +1,309 @@
+{
+ "_que": "Error del pronóstico por horizonte, medido contra lo que después resultó. Lo genera `npm run backtest`. La app lee bandaPts para mostrar la incertidumbre real en vez de una constante inventada.",
+ "_verdad": {
+  "atmosfera": "ERA5 (archive-api). Reanálisis que asimila observaciones; no es una boya.",
+  "mar": "Análisis del propio modelo de oleaje: MODELO CONTRA MODELO. Mide consistencia, no exactitud contra el mar real. No hay boya gratis en el Golfo."
+ },
+ "_generado": "2026-09-01",
+ "_ventanaDias": 90,
+ "ubicaciones": [
+  "marina-ocean-reef",
+  "contadora",
+  "las-sirenas",
+  "coronado"
+ ],
+ "porVariable": {
+  "viento": {
+   "1": {
+    "mae": 2.5114697802197847,
+    "sesgo": -0.14299450549450546,
+    "n": 2912,
+    "unidad": "kt",
+    "verdad": "ERA5"
+   },
+   "2": {
+    "mae": 2.6454326923076876,
+    "sesgo": -0.7555975274725262,
+    "n": 2912,
+    "unidad": "kt",
+    "verdad": "ERA5"
+   },
+   "3": {
+    "mae": 2.766071428571431,
+    "sesgo": -1.0309065934065935,
+    "n": 2912,
+    "unidad": "kt",
+    "verdad": "ERA5"
+   },
+   "4": {
+    "mae": 2.8939903846153867,
+    "sesgo": -1.3106799450549451,
+    "n": 2912,
+    "unidad": "kt",
+    "verdad": "ERA5"
+   },
+   "5": {
+    "mae": 2.9292925824175864,
+    "sesgo": -1.321600274725276,
+    "n": 2912,
+    "unidad": "kt",
+    "verdad": "ERA5"
+   },
+   "6": {
+    "mae": 3.1361263736263756,
+    "sesgo": -1.5659340659340657,
+    "n": 2912,
+    "unidad": "kt",
+    "verdad": "ERA5"
+   },
+   "7": {
+    "mae": 3.0866071428571433,
+    "sesgo": -1.5560439560439576,
+    "n": 2912,
+    "unidad": "kt",
+    "verdad": "ERA5"
+   }
+  },
+  "ráfaga": {
+   "1": {
+    "mae": 3.5512706043956053,
+    "sesgo": -1.9342376373626347,
+    "n": 2912,
+    "unidad": "kt",
+    "verdad": "ERA5"
+   },
+   "2": {
+    "mae": 3.783173076923084,
+    "sesgo": -2.28083791208791,
+    "n": 2912,
+    "unidad": "kt",
+    "verdad": "ERA5"
+   },
+   "3": {
+    "mae": 3.809581043956039,
+    "sesgo": -2.2630151098901092,
+    "n": 2912,
+    "unidad": "kt",
+    "verdad": "ERA5"
+   },
+   "4": {
+    "mae": 3.6691964285714307,
+    "sesgo": -2.3494162087912143,
+    "n": 2912,
+    "unidad": "kt",
+    "verdad": "ERA5"
+   },
+   "5": {
+    "mae": 3.740521978021992,
+    "sesgo": -2.434752747252752,
+    "n": 2912,
+    "unidad": "kt",
+    "verdad": "ERA5"
+   },
+   "6": {
+    "mae": 3.763598901098904,
+    "sesgo": -2.2972527472527444,
+    "n": 2912,
+    "unidad": "kt",
+    "verdad": "ERA5"
+   },
+   "7": {
+    "mae": 5.011504120879129,
+    "sesgo": -3.6279189560439566,
+    "n": 2912,
+    "unidad": "kt",
+    "verdad": "ERA5"
+   }
+  },
+  "nubosidad": {
+   "1": {
+    "mae": 18.852678571428573,
+    "sesgo": 3.920673076923077,
+    "n": 2912,
+    "unidad": "%",
+    "verdad": "ERA5"
+   },
+   "2": {
+    "mae": 21.650755494505493,
+    "sesgo": 10.333447802197803,
+    "n": 2912,
+    "unidad": "%",
+    "verdad": "ERA5"
+   },
+   "3": {
+    "mae": 22.130494505494507,
+    "sesgo": 10.080357142857142,
+    "n": 2912,
+    "unidad": "%",
+    "verdad": "ERA5"
+   },
+   "4": {
+    "mae": 23.72561813186813,
+    "sesgo": 12.639766483516484,
+    "n": 2912,
+    "unidad": "%",
+    "verdad": "ERA5"
+   },
+   "5": {
+    "mae": 23.809752747252748,
+    "sesgo": 12.70673076923077,
+    "n": 2912,
+    "unidad": "%",
+    "verdad": "ERA5"
+   },
+   "6": {
+    "mae": 24.17513736263736,
+    "sesgo": 11.927884615384615,
+    "n": 2912,
+    "unidad": "%",
+    "verdad": "ERA5"
+   },
+   "7": {
+    "mae": 26.203983516483518,
+    "sesgo": 10.036401098901099,
+    "n": 2912,
+    "unidad": "%",
+    "verdad": "ERA5"
+   }
+  },
+  "ola": {
+   "1": {
+    "mae": 0.02159340659340703,
+    "sesgo": -0.00605769230769229,
+    "n": 2912,
+    "unidad": "m",
+    "verdad": "modelo"
+   },
+   "2": {
+    "mae": 0.040837912087912216,
+    "sesgo": -0.025013736263736402,
+    "n": 2912,
+    "unidad": "m",
+    "verdad": "modelo"
+   },
+   "3": {
+    "mae": 0.051401098901099736,
+    "sesgo": -0.04351648351648394,
+    "n": 2912,
+    "unidad": "m",
+    "verdad": "modelo"
+   },
+   "4": {
+    "mae": 0.056092032967033786,
+    "sesgo": -0.050020604395604726,
+    "n": 2912,
+    "unidad": "m",
+    "verdad": "modelo"
+   },
+   "5": {
+    "mae": 0.06117445054945115,
+    "sesgo": -0.050831043956044125,
+    "n": 2912,
+    "unidad": "m",
+    "verdad": "modelo"
+   },
+   "6": {
+    "mae": 0.07921703296703334,
+    "sesgo": -0.06986263736263759,
+    "n": 2912,
+    "unidad": "m",
+    "verdad": "modelo"
+   },
+   "7": {
+    "mae": 0.11745879120879177,
+    "sesgo": -0.11431318681318732,
+    "n": 2912,
+    "unidad": "m",
+    "verdad": "modelo"
+   }
+  },
+  "período": {
+   "1": {
+    "mae": 0.5020089285714256,
+    "sesgo": -0.08033997252747263,
+    "n": 2912,
+    "unidad": "s",
+    "verdad": "modelo"
+   },
+   "2": {
+    "mae": 0.8929773351648356,
+    "sesgo": -0.03768887362637369,
+    "n": 2912,
+    "unidad": "s",
+    "verdad": "modelo"
+   },
+   "3": {
+    "mae": 1.0019402472527452,
+    "sesgo": 0.43360233516483604,
+    "n": 2912,
+    "unidad": "s",
+    "verdad": "modelo"
+   },
+   "4": {
+    "mae": 1.126339285714289,
+    "sesgo": 0.625721153846155,
+    "n": 2912,
+    "unidad": "s",
+    "verdad": "modelo"
+   },
+   "5": {
+    "mae": 1.2457074175824192,
+    "sesgo": 0.6109890109890103,
+    "n": 2912,
+    "unidad": "s",
+    "verdad": "modelo"
+   },
+   "6": {
+    "mae": 1.2972699175824183,
+    "sesgo": 0.05788118131868113,
+    "n": 2912,
+    "unidad": "s",
+    "verdad": "modelo"
+   },
+   "7": {
+    "mae": 1.5442479395604416,
+    "sesgo": -0.10808722527472525,
+    "n": 2912,
+    "unidad": "s",
+    "verdad": "modelo"
+   }
+  }
+ },
+ "bandaPts": {
+  "1": {
+   "maePts": 5.344538762019229,
+   "p90Pts": 12.454687500000006,
+   "dias": 364
+  },
+  "2": {
+   "maePts": 6.721659297733516,
+   "p90Pts": 15.719765625000008,
+   "dias": 364
+  },
+  "3": {
+   "maePts": 7.107827094780218,
+   "p90Pts": 15.206249999999997,
+   "dias": 364
+  },
+  "4": {
+   "maePts": 7.620065032623629,
+   "p90Pts": 16.845,
+   "dias": 364
+  },
+  "5": {
+   "maePts": 7.7658954326923055,
+   "p90Pts": 17.428124999999994,
+   "dias": 364
+  },
+  "6": {
+   "maePts": 8.13963598901099,
+   "p90Pts": 20.212500000000006,
+   "dias": 364
+  },
+  "7": {
+   "maePts": 8.843748926854394,
+   "p90Pts": 19.615625,
+   "dias": 364
+  }
+ }
+}

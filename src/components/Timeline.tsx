@@ -1,7 +1,7 @@
 // Línea de tiempo horaria deslizable: las próximas horas de un punto.
 
 import type { PuntoForecast, PuntoMarine } from '../lib/types'
-import { parsePanama, horaMuyCorta, esHoy, diaCorto } from '../lib/time'
+import { parsePanama, horaMuyCorta, esHoy, diaCorto, ahoraPanama } from '../lib/time'
 import { cieloDeCodigo } from '../lib/wmo'
 import { Icono } from './Icono'
 import { fmtOla, fmtViento, type Unidades } from '../lib/units'
@@ -16,7 +16,8 @@ interface Props {
 }
 
 export function Timeline({ forecast, marine, unidades, horas = 30, conOla = true }: Props) {
-  const ahora = Date.now() - 3600_000 // incluye la hora en curso
+  // incluye la hora en curso
+  const ahora = ahoraPanama().getTime() - 3600_000
   const items: {
     t: Date
     code: number | null

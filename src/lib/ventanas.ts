@@ -20,7 +20,8 @@ import {
   type ResultadoScore,
 } from './score'
 import { serieMarea, nivelRelativo, tendenciaEn, type SerieMarea } from './tide'
-import { parsePanama, claveDia } from './time'
+import { parsePanama, claveDia, ahoraPanama, medianocheHoyPanama } from './time'
+import { ventanasEnContra, type VentanaContra } from './corriente'
 
 const idx = (id: string) => PUNTOS.findIndex((p) => p.id === id)
 
@@ -131,6 +132,13 @@ export interface DiaJornada {
    * más preciso de lo que se pudo comprobar.
    */
   fueraDeSkill: boolean
+  /**
+   * Tramos de la jornada con viento EN CONTRA de la corriente. Es el
+   * caso que arruina el cruce aunque el viento sea bajo: las olas se
+   * paran y rompen. Vacío casi siempre. Ver `corriente.ts` para el
+   * alcance real (cubre mar abierto, no los pasos entre islas).
+   */
+  contraCorriente: VentanaContra[]
   /** Amanece / se pone, del día. */
   sol: { sale: Date; sePone: Date } | null
 }
@@ -370,13 +378,13 @@ export function jornadasSemana(datos: DatosApp): DiaJornada[] {
     mareas.set(p.id, m ? serieMarea(m.hourly.time, m.hourly.sea_level_height_msl) : null)
   }
 
-  const ahora = new Date()
+  const ahora = ahoraPanama()
   const out: DiaJornada[] = []
   // Medianoche de hoy en Panamá, para medir anticipación en días de
   // calendario. No se usa el índice del arreglo: si los datos vienen del
   // caché (hasta 6 h) el primer día podría ya no ser hoy, y entonces
   // "día 6" se marcaría mal.
-  const hoy0 = parsePanama(`${claveDia(ahora)}T00:00`)
+  const hoy0 = medianocheHoyPanama()
 
   for (let d = 0; d < f0.daily.time.length; d++) {
     const base = parsePanama(`${f0.daily.time[d]}T00:00`)
@@ -425,6 +433,19 @@ export function jornadasSemana(datos: DatosApp): DiaJornada[] {
       desacuerdo: desacuerdoModelos(datos, inicio, horas, mejor.punto),
       anticipacionDias: anticipacion,
       fueraDeSkill: anticipacion > horizonteDeSkill(base),
+      // Se mira el corredor entero: salida y destino. Si en cualquiera
+      // de los dos el viento va contra la corriente, el cruce lo cruza.
+      contraCorriente: [
+        ...ventanasEnContra(f0, datos.marine[idx(PUNTO_SALIDA.id)], inicio, horas),
+        ...ventanasEnContra(
+          datos.forecast[idx(mejor.punto.id)],
+          datos.marine[idx(mejor.punto.id)],
+          inicio,
+          horas,
+        ),
+      ]
+        .sort((a, b) => a.desde.getTime() - b.desde.getTime())
+        .slice(0, 2),
       sol: {
         sale: parsePanama(f0.daily.sunrise[d]),
         sePone: parsePanama(f0.daily.sunset[d]),
@@ -485,7 +506,7 @@ export function diasPlaya(datos: DatosApp, puntoId: string): DiaPlaya[] {
   if (!f) return []
   const { desdeHora, hastaHora } = CALIBRACION.jornada
   const out: DiaPlaya[] = []
-  const hoy0 = parsePanama(`${claveDia(new Date())}T00:00`)
+  const hoy0 = medianocheHoyPanama()
   for (let d = 0; d < f.daily.time.length; d++) {
     const base = parsePanama(`${f.daily.time[d]}T00:00`)
     const anticipacion = Math.round((base.getTime() - hoy0.getTime()) / 86400_000)

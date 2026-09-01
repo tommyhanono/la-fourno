@@ -840,3 +840,48 @@ summary:focus-visible {
   .btn-verdad { transition: none; }
   .btn-verdad:active { transform: none; }
 }
+
+/* La banda de incertidumbre dentro del desglose. No es un aviso: es
+   parte de la explicación del número, así que va como nota, no en rojo. */
+.nota-banda {
+  display: block;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 2px solid var(--color-surface-2);
+  font-size: 0.85rem;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+}
+.veredicto .nota-banda {
+  border-top-color: oklch(0.4 0.02 265);
+  color: oklch(0.85 0.02 85);
+}
+
+/* Dato viejo: banner, no letra chica. A pleno sol y sin señal, la letra
+   chica no se lee, y un score de ayer con cara de fresco lleva a zarpar
+   con información que ya no vale. Va en ámbar de advertencia, no en el
+   rojo de "no salgas": el dato viejo no es un peligro, es una duda. */
+.banner-viejo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-brutal);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+.banner-viejo svg { flex-shrink: 0; color: var(--color-warn); }
+
+/* Viento contra corriente: no es peligro declarado, es una condición
+   que arruina el cruce. Ámbar, no rojo — el rojo es "no salgas". */
+.dia-contracorriente {
+  margin-top: var(--space-2);
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--color-warn);
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: var(--color-text);
+}

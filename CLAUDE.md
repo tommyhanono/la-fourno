@@ -12,6 +12,10 @@ Vite + React + TypeScript. Sin backend. Deploy en **Vercel** → <https://la-fou
 - `npm test` (vitest) · `npm run test:e2e` (Playwright) · `npm run lint` (oxlint)
 - `npm run typecheck` — **incluye los tests**. `tsc -b` solo mira `src`, así que
   un fixture con la forma equivocada pasaba sin ruido. Correr los dos.
+- `npm run backtest` — mide cuánto se equivoca el pronóstico por horizonte y
+  regenera `src/config/backtest.json`, que la app lee para mostrar el ±N.
+- `npm run auditar-datos` — comprueba que las defensas del servidor de la
+  verdad de campo siguen puestas. **Lista, no borra.**
 
 ## Antes de tocar el score o las fuentes de datos
 
@@ -55,6 +59,19 @@ guarda en el teléfono y no sincroniza.
 
 Variables (`.env` local, y cargadas en Vercel):
 `VITE_SUPABASE_URL` · `VITE_SUPABASE_ANON` · `VITE_FOURNO_TOKEN`.
+
+## Verdad de campo: nadie escribe desde fuera de producción
+
+Dos defensas, y la de arriba no alcanza sola:
+
+1. **Cliente**: la app no sincroniza si el host es localhost.
+2. **Servidor**: el RPC exige `p_origen` contra una lista en
+   `fourno_config`. Sin origen válido, rechaza. Es la que vale, porque
+   el token viaja en el bundle y no es secreto.
+
+Ya pasó dos veces que pruebas locales escribieran en la tabla de
+producción. Si vuelve a pasar, el problema está en el servidor, no en
+parchear un test más.
 
 ## Gotchas
 

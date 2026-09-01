@@ -3,6 +3,7 @@
 
 import type { ResultadoScore } from '../lib/score'
 import { nivelScore, faltaDatoCritico } from '../lib/score'
+import { textoBanda, BACKTEST_INFO } from '../lib/incertidumbre'
 
 export function BadgeScore({ score }: { score: ResultadoScore }) {
   if (faltaDatoCritico(score)) {
@@ -29,7 +30,17 @@ function listar(xs: string[]): string {
   return `${xs.slice(0, -1).join(', ')} y ${xs[xs.length - 1]}`
 }
 
-export function Desglose({ score, id }: { score: ResultadoScore; id: string }) {
+export function Desglose({
+  score,
+  id,
+  anticipacionDias,
+}: {
+  score: ResultadoScore
+  id: string
+  /** Si viene, el desglose dice cuánto se equivoca el número a esa distancia. */
+  anticipacionDias?: number
+}) {
+  const banda = anticipacionDias == null ? null : textoBanda(anticipacionDias)
   return (
     <details className="desglose">
       <summary>
@@ -60,6 +71,18 @@ export function Desglose({ score, id }: { score: ResultadoScore; id: string }) {
             </span>
           </li>
         ))}
+        {banda && (
+          <li className="nota-banda">
+            {/* La incertidumbre va DENTRO del desglose, que es donde el
+                usuario viene a preguntar de dónde sale el número. Y va
+                con su procedencia: sin eso, "±8" sería otro número
+                inventado más. */}
+            A {anticipacionDias === 0 ? 'un día' : `${anticipacionDias} día${anticipacionDias === 1 ? '' : 's'}`} de
+            distancia este puntaje se equivoca <strong>{banda} pts</strong> en
+            promedio. Medido sobre {BACKTEST_INFO.ventanaDias} días reales en{' '}
+            {BACKTEST_INFO.ubicaciones} puntos ({BACKTEST_INFO.generado}).
+          </li>
+        )}
         {score.parcial && (
           <li className="nota-parcial">
             {/* Decir QUÉ faltó, no solo que faltó algo: no es lo mismo

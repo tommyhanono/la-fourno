@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react'
 import type { EstadoDatos } from '../state/hooks'
 import { irA } from '../state/hooks'
 import { haceCuanto } from '../lib/time'
+import { edadMs, TTL_VIEJO_MS } from '../lib/cache'
 import { Icono } from './Icono'
 
 export function Header({
@@ -44,7 +45,38 @@ export function Header({
         </div>
       </div>
       <EstadoDato estado={estado} />
+      <BannerDatoViejo estado={estado} />
     </header>
+  )
+}
+
+/**
+ * Cuando el dato ya está viejo de verdad, se dice fuerte.
+ *
+ * La línea de "datos de hace X" es letra chica, y a 40 km de la costa,
+ * sin señal, con el teléfono al sol, la letra chica no se lee. Un score
+ * de ayer con cara de fresco es peor que no tener score: lleva a zarpar
+ * con información que ya no vale.
+ *
+ * El umbral es el mismo que usa el caché para considerar un dato
+ * "viejo de verdad" (TTL_VIEJO_MS), así que no hay dos definiciones de
+ * viejo compitiendo.
+ */
+export function BannerDatoViejo({ estado }: { estado: EstadoDatos }) {
+  const { datos } = estado
+  if (!datos) return null
+  const edad = edadMs(datos)
+  if (edad <= TTL_VIEJO_MS) return null
+  const horas = Math.floor(edad / 3600_000)
+  return (
+    <p className="banner-viejo" role="alert">
+      <Icono nombre="alerta" size={20} />
+      <span>
+        <strong>Este pronóstico tiene {horas} h.</strong> No se ha podido
+        actualizar. Los números de abajo son de la última vez que hubo señal:
+        míralos como referencia, no como el estado de ahora.
+      </span>
+    </p>
   )
 }
 

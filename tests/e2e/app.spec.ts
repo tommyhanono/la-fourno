@@ -461,6 +461,54 @@ test.describe('La Fourno', () => {
     await expect(page.getByText(/hace 2 h/)).toBeVisible()
   })
 
+  test('caché de AYER sin señal: banner grande, no letra chica', async ({ page }) => {
+    // La prueba de degradación honesta. A 40 km de la costa no hay
+    // señal; la app tiene que seguir sirviendo, pero no puede presentar
+    // un score de ayer con cara de fresco.
+    usarDiaBase(hoyPanama())
+    const datos = datosSinteticos()
+    datos.fetchedAt = new Date(Date.now() - 26 * 3600_000).toISOString()
+    await page.addInitScript((d) => {
+      localStorage.setItem('lafourno:datos:v2', d)
+    }, JSON.stringify(datos))
+    await cortarRed(page)
+    await page.goto('/')
+
+    // Sigue siendo útil: el veredicto está.
+    await expect(page.locator('.veredicto')).toHaveCount(1, { timeout: 20_000 })
+
+    // Pero lo dice FUERTE, no en la línea chica: banner con role=alert.
+    const banner = page.locator('.banner-viejo')
+    await expect(banner).toHaveCount(1)
+    await expect(banner).toContainText(/tiene \d+ h/)
+    await expect(banner).toHaveAttribute('role', 'alert')
+
+    // Y se ve de verdad: no está escondido ni es más chico que la línea.
+    const caja = await banner.boundingBox()
+    expect(caja!.height).toBeGreaterThan(30)
+    const tam = await banner.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+    const chica = await page
+      .locator('.estado-dato')
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+    expect(tam).toBeGreaterThan(chica)
+
+    // La edad sigue visible en todas las vistas con pronóstico.
+    await page.goto('/#/punto/contadora')
+    await expect(page.locator('.estado-dato')).toContainText(/Datos de hace/)
+    await expect(page.locator('.banner-viejo')).toHaveCount(1)
+  })
+
+  test('con dato fresco NO hay banner: el aviso tiene que significar algo', async ({
+    page,
+  }) => {
+    await mockApis(page)
+    await page.goto('/')
+    await expect(page.locator('.badge-score strong').first()).toHaveText(/^\d+$/, {
+      timeout: 15_000,
+    })
+    expect(await page.locator('.banner-viejo').count()).toBe(0)
+  })
+
   test('si solo falla la API marina, lo dice y muestra el clima', async ({ page }) => {
     usarDiaBase(hoyPanama())
     await page.route('**/api.open-meteo.com/**', (route) =>

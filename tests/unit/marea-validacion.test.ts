@@ -45,7 +45,7 @@ function emparejados() {
   const desde = serie.times[12]
   const hasta = serie.times[serie.times.length - 13]
   const mios = extremos(serie, desde, hasta)
-  const out: { dtMin: number; dNivel: number; tipo: string }[] = []
+  const out: { dtMin: number; dNivel: number; tipo: string; fecha: string }[] = []
   for (const e of noaa) {
     const t = new Date(`${e.t}:00-05:00`).getTime()
     if (t < desde.getTime() || t > hasta.getTime()) continue
@@ -65,6 +65,7 @@ function emparejados() {
       dtMin: (mejor.time.getTime() - t) / 60_000,
       dNivel: mejor.nivel - e.nivel,
       tipo: e.tipo,
+      fecha: e.t.slice(0, 10),
     })
   }
   return out
@@ -80,6 +81,46 @@ const pct = (xs: number[], f: number) => {
   return s[Math.floor(f * (s.length - 1))]
 }
 const media = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
+
+describe('tabla de validación: 10 fechas contra NOAA', () => {
+  it('en 10 fechas repartidas, el error de cada extremo está bajo 20 min', () => {
+    // La muestra se toma repartida a lo largo de los 3 meses para que
+    // caigan fechas de marea viva y de muerta, no diez seguidas.
+    const porFecha = new Map<string, { dtMin: number; tipo: string }[]>()
+    for (const p of pares) {
+      const f = p.fecha
+      if (!porFecha.has(f)) porFecha.set(f, [])
+      porFecha.get(f)!.push({ dtMin: p.dtMin, tipo: p.tipo })
+    }
+    const fechas = [...porFecha.keys()].sort()
+    const paso = Math.floor(fechas.length / 10)
+    const muestra = Array.from({ length: 10 }, (_, i) => fechas[i * paso])
+
+    console.log('\nVALIDACIÓN DE MAREA — modelo contra NOAA Balboa (9812501)\n')
+    console.log('fecha        extremos   error de cada uno (min)   |peor|')
+    console.log('-----------  --------   -----------------------   -----')
+    let peorGlobal = 0
+    for (const f of muestra) {
+      const es = porFecha.get(f)!
+      const abs = es.map((e) => Math.abs(e.dtMin))
+      const peor = Math.max(...abs)
+      peorGlobal = Math.max(peorGlobal, peor)
+      console.log(
+        `${f}      ${String(es.length).padStart(2)}       ` +
+          es.map((e) => `${e.tipo[0].toUpperCase()} ${e.dtMin >= 0 ? '+' : ''}${e.dtMin.toFixed(0)}`).join('  ').padEnd(24) +
+          `  ${peor.toFixed(0).padStart(4)}`,
+      )
+      // El criterio: cada extremo de cada fecha, bajo 20 minutos.
+      for (const a of abs) expect(a).toBeLessThan(20)
+    }
+    const todos = pares.map((p) => Math.abs(p.dtMin))
+    console.log(`\nNUMEROS EXACTOS sobre los ${todos.length} extremos:`)
+    console.log(`  mediana ${mediana(todos).toFixed(1)} · p90 ${pct(todos, 0.9).toFixed(1)} · peor ${Math.max(...todos).toFixed(1)} min`)
+    console.log(`peor de las 10 fechas: ${peorGlobal.toFixed(1)} min`)
+    console.log('(P = pleamar, B = bajamar; + = el modelo va tarde)')
+    expect(muestra.length).toBe(10)
+  })
+})
 
 describe('la marea estimada contra la tabla oficial de Balboa', () => {
   it('encuentra casi todos los extremos oficiales', () => {

@@ -49,6 +49,102 @@ que sea porque sospechas **deriva**, no porque no se hizo.
 
 ---
 
+## Ronda 10 — de "creo que el score es bueno" a "sé cuánto se equivoca"
+
+### El backtest: `npm run backtest`
+
+Compara, sobre 90 días y las 4 ubicaciones clave, lo que el modelo
+predecía a N días contra lo que después resultó. Deja el artefacto en
+`src/config/backtest.json`, que la app **lee directamente** — el ±N que
+se muestra no está copiado a mano en ningún lado.
+
+**Error por variable (MAE), por días de anticipación:**
+
+| variable | −1d | −3d | −5d | −7d | verdad |
+|---|---|---|---|---|---|
+| viento (kt) | 2.51 | 2.77 | 2.93 | 3.09 | ERA5 |
+| ráfaga (kt) | 3.55 | 3.81 | 3.74 | 5.01 | ERA5 |
+| **nubosidad (%)** | **18.85** | **22.13** | **23.81** | **26.20** | ERA5 |
+| ola (m) | 0.02 | 0.05 | 0.06 | 0.12 | modelo |
+| período (s) | 0.50 | 1.00 | 1.25 | 1.54 | modelo |
+
+**Sesgo** (positivo = el modelo pronostica de más): viento −0.14 a
+−1.56 · ráfaga −1.93 a −3.63 · nubosidad +3.92 a +12.71.
+
+Dos cosas de ahí que importan:
+
+1. **La nubosidad es lo peor pronosticado, por lejos.** 19-26 % de error
+   sobre una variable que va de 0 a 100.
+2. **El modelo SUBESTIMA viento y ráfaga a distancia** (−1.6 y −3.6 kt a
+   7 días). Es el lado inseguro del error: la app es optimista con el
+   viento en los días lejanos. **NO se corrigió el sesgo**, y a
+   propósito: ERA5 es un reanálisis, no una observación, y ajustar el
+   score en dirección de seguridad contra una referencia que también es
+   modelo sería inventar precisión. Queda dicho acá y en el informe.
+
+**Error en puntos del score** (de los 90 medibles; la marea y las rayas
+de seguridad quedan fuera). No se propaga el MAE analíticamente: se
+calcula el score con lo pronosticado y con lo que resultó, que es lo que
+de verdad le pasa al usuario.
+
+| lead | MAE | p90 |
+|---|---|---|
+| −1d | 5.3 | 12.5 |
+| −3d | 7.1 | 15.2 |
+| −5d | 7.8 | 17.4 |
+| −7d | 8.8 | 19.6 |
+
+La app muestra ese ±N dentro del desglose, con su procedencia (cuántos
+días, cuántos puntos, qué fecha).
+
+**Límite declarado:** el mar (ola y período) se compara contra el
+análisis del propio modelo de oleaje. Eso es MODELO CONTRA MODELO: mide
+consistencia, no exactitud contra el mar real. No hay boya gratis en el
+Golfo. Va marcado en la tabla del script y en el artefacto.
+
+---
+
+### Viento contra corriente: implementado, con su punto ciego
+
+Medido sobre 90 días y 2160 horas-punto del corredor: la corriente que
+el modelo ve es **débil** — p50 0.49 kt, p90 0.81, máximo 1.24. Con
+viento opuesto (>135°), corriente ≥0.5 kt y viento ≥8 kt, la condición
+sale en el **1.5 %** de las horas de jornada.
+
+**Lo que este aviso NO ve:** los pasos entre islas de Las Perlas, donde
+la corriente acelera a varios nudos y es donde el viento en contra de
+verdad revuelve. El modelo tiene celdas de ~11 km y no resuelve esos
+canales. Cubre el mar abierto del cruce y es estructuralmente ciego a lo
+peor. Está dicho en el UI, no escondido.
+
+---
+
+### Qué decide el score en la práctica (F6)
+
+Neutralizando cada variable —poniéndole a todos los días su mediana— y
+midiendo cuánto se desordena el ranking, sobre 180 días reales:
+
+| al neutralizar | posiciones movidas | semanas que cambian |
+|---|---|---|
+| **viento + ráfaga** | **24.86** | **10/25** |
+| sol | 24.27 | 8/25 |
+| viento sostenido solo | 16.09 | 7/25 |
+| ráfaga sola | 14.16 | 7/25 |
+| ola | 4.49 | 1/25 |
+
+**No hay contradicción con el criterio declarado**, pero el margen es
+delgado: la familia del viento gana al sol por 2 %. El viento sostenido
+**solo** pierde contra el sol; lo que inclina la balanza es el castigo
+por ráfaga.
+
+**NO se tocaron los pesos**, y la razón es medida: mover viento 45→50
+cambia el mejor día en **0 de 25 semanas**. Lo que manda el ranking no
+son los pesos nominales sino cuánto VARÍA cada insumo, y en este clima
+la nubosidad varía tanto que compite con el viento pese a pesar menos.
+Subir el peso del viento no arreglaría nada; solo movería el número.
+
+---
+
 ## Frentes abiertos, por prioridad
 
 ### P1 — Verdad de campo: la tubería ya está, faltan los datos
@@ -548,8 +644,8 @@ antes.
 ```
 npm run typecheck     # incluye los tests (tsc solo miraba src hasta ago-2026)
 npm run lint
-npm test              # 141 unit
-npm run test:e2e      # 19 E2E
+npm test              # 182 unit
+npm run test:e2e      # 21 E2E
 node scripts/audita-layout.mjs      # requiere preview en :4330
 node scripts/audita-contraste.mjs   # requiere preview en :4339
 ```

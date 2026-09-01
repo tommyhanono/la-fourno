@@ -13,9 +13,53 @@ export function parsePanama(iso: string): Date {
   return new Date(Date.UTC(y, m - 1, day, hh, mm) - TZ_OFFSET_MS)
 }
 
-/** Ahora mismo, como "componentes de reloj de Panamá". */
+/**
+ * EL ÚNICO "AHORA" DE LA APP. Todo el código que necesite saber qué
+ * hora es pasa por acá.
+ *
+ * Devuelve un instante, no una hora local: un Date ES un instante
+ * absoluto, y lo panameño aparece al LEER sus componentes con
+ * `compsPanama`. Mezclar las dos ideas es de donde salieron los dos
+ * bugs de "el índice 0 es hoy": alguien calculaba el día con el reloj
+ * del dispositivo en vez del de Panamá.
+ *
+ * Existe como función y no como `new Date()` suelto para que los tests
+ * puedan congelarla en un solo lugar, y para que buscar "quién decide
+ * qué día es hoy" tenga UNA respuesta.
+ */
 export function ahoraPanama(): Date {
   return new Date()
+}
+
+/** "2026-09-01" — el día de HOY según el reloj de Panamá. */
+export function hoyPanama(): string {
+  return claveDia(ahoraPanama())
+}
+
+/**
+ * Medianoche de hoy en Panamá, como instante.
+ *
+ * Es lo que hace falta para medir anticipación en días de calendario, y
+ * estaba escrito a mano en dos lugares distintos como
+ * `parsePanama(claveDia(new Date()) + 'T00:00')`. Una sola vez.
+ */
+export function medianocheHoyPanama(): Date {
+  return parsePanama(`${hoyPanama()}T00:00`)
+}
+
+/**
+ * Busca un día por FECHA en una lista, nunca por posición.
+ *
+ * Los dos bugs de esta clase salieron de asumir que el índice 0 de un
+ * arreglo de días es hoy. No lo es cuando el caché cruza la medianoche:
+ * el pronóstico guardado ayer empieza en ayer. Esta función existe para
+ * que no haya excusa para volver a indexar por posición.
+ */
+export function buscarDia<T extends { clave: string }>(
+  dias: readonly T[],
+  clave: string,
+): T | undefined {
+  return dias.find((d) => d.clave === clave)
 }
 
 function compsPanama(d: Date) {
