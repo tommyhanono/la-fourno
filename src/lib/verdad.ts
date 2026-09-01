@@ -207,7 +207,31 @@ const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const ANON = import.meta.env.VITE_SUPABASE_ANON as string | undefined
 const TOKEN = import.meta.env.VITE_FOURNO_TOKEN as string | undefined
 
-export const haySync = (): boolean => Boolean(URL && ANON && TOKEN)
+/**
+ * ¿Se puede respaldar? Hacen falta las tres variables Y no estar en
+ * desarrollo.
+ *
+ * Lo de localhost no es paranoia: pasó dos veces. Los E2E y los probes
+ * manuales corren contra un preview local que SÍ tiene el .env, así que
+ * un click de prueba escribía en la tabla de producción. Quedaron dos
+ * registros inventados en fourno_registros —la tabla cuyo propósito
+ * entero es ser verdad— y hubo que borrarlos a mano.
+ *
+ * Bloquear los tests uno por uno no alcanza: hay que acordarse cada
+ * vez. Cortarlo por host lo cubre siempre.
+ */
+export const haySync = (): boolean => {
+  if (!URL || !ANON || !TOKEN) return false
+  try {
+    const h = globalThis.location?.hostname ?? ''
+    if (h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '') {
+      return false
+    }
+  } catch {
+    return false
+  }
+  return true
+}
 
 async function rpc(fn: string, body: Record<string, unknown>): Promise<boolean> {
   if (!haySync()) return false
@@ -251,6 +275,30 @@ export async function sincronizar(): Promise<void> {
     }
   }
   if (cambio) escribir(KEY_REGISTROS, registros)
+}
+
+/**
+ * Estado del respaldo, para poder mirarlo en Ajustes.
+ *
+ * Existe porque el modo de fallo de todo esto es SILENCIOSO: si las
+ * variables no están puestas o el RPC rechaza siempre, Tommy podría
+ * contestar durante meses creyendo que está juntando datos, y no habría
+ * nada en el servidor. localStorage lo tendría, pero él no lo sabría —
+ * y el punto de esto es que los datos se puedan leer después.
+ */
+export function estadoRespaldo(): {
+  registros: number
+  sincronizados: number
+  archivo: number
+  activo: boolean
+} {
+  const rs = leerRegistros()
+  return {
+    registros: rs.length,
+    sincronizados: rs.filter((r) => r.sincronizado).length,
+    archivo: leerArchivo().length,
+    activo: haySync(),
+  }
 }
 
 /** Sube el archivo de pronósticos recién generado. No bloquea nada. */

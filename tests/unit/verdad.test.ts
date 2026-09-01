@@ -11,6 +11,8 @@ import {
   leerRegistros,
   leerArchivo,
   resumir,
+  estadoRespaldo,
+  haySync,
   DIAS_ATRAS,
 } from '../../src/lib/verdad'
 import { jornadasSemana } from '../../src/lib/ventanas'
@@ -147,6 +149,46 @@ describe('a qué día se le pregunta', () => {
         86400_000,
     )
     expect(dias).toBeLessThanOrEqual(DIAS_ATRAS)
+  })
+})
+
+describe('estado del respaldo', () => {
+  it('sin nada contestado ni archivado, dice cero', () => {
+    const e = estadoRespaldo()
+    expect(e.registros).toBe(0)
+    expect(e.archivo).toBe(0)
+    expect(e.sincronizados).toBe(0)
+  })
+
+  it('cuenta lo contestado y lo archivado', () => {
+    archivarSemana(semana())
+    guardarRegistro(DIA_BASE, 'igual')
+    const e = estadoRespaldo()
+    expect(e.registros).toBe(1)
+    expect(e.archivo).toBeGreaterThan(0)
+  })
+
+  it('un registro recién guardado NO cuenta como sincronizado', () => {
+    // Es lo que hace visible el fallo silencioso: si la sincronización
+    // no funciona, este número se queda en cero y Ajustes lo dice.
+    guardarRegistro(DIA_BASE, 'peor')
+    expect(estadoRespaldo().sincronizados).toBe(0)
+  })
+
+  it('en tests el respaldo está APAGADO, y no por casualidad', () => {
+    // Doble red: sin variables de entorno no hay sync, y aunque las
+    // hubiera, el host de los tests no es producción. Esto último es lo
+    // que importa: los E2E y los probes locales corren contra un
+    // preview que SÍ tiene el .env, y dos veces terminaron escribiendo
+    // registros inventados en la tabla de producción.
+    expect(estadoRespaldo().activo).toBe(false)
+  })
+
+  it('nunca sincroniza desde localhost', () => {
+    vi.stubGlobal('location', { hostname: 'localhost' } as Location)
+    expect(haySync()).toBe(false)
+    vi.stubGlobal('location', { hostname: '127.0.0.1' } as Location)
+    expect(haySync()).toBe(false)
   })
 })
 

@@ -501,6 +501,14 @@ export function diasPlaya(datos: DatosApp, puntoId: string): DiaPlaya[] {
     out.push({
       dia: base,
       clave: f.daily.time[d],
+      // El viento va como MÁXIMO, no como el "típico ponderado al pico"
+      // que usa el score de navegación. Es una inconsistencia real entre
+      // los dos scores, y se dejó a propósito: medido el 1-sep-2026
+      // sobre 86 días, pasar la playa a "típico" mueve el puntaje 2.18
+      // pts de media y cambia el mejor día de playa en 0 de 12 semanas.
+      // Cambiarlo sería churn sin beneficio. En la playa además el pico
+      // sí molesta más (arena, sombrilla) y la curva de viento de playa
+      // ya es más indulgente, así que el máximo no queda severo.
       score: scorePlaya({
         nubosidadPct: meanNum(ii.map((k) => f.hourly.cloud_cover[k])),
         probLluviaPct: maxNum(ii.map((k) => f.hourly.precipitation_probability[k])),

@@ -4,6 +4,7 @@
 import type { EstadoDatos } from '../state/hooks'
 import type { Unidades } from '../lib/units'
 import { Header, AvisoSeguridad } from '../components/Marco'
+import { estadoRespaldo } from '../lib/verdad'
 
 export function Ajustes({
   estado,
@@ -54,6 +55,11 @@ export function Ajustes({
           </p>
         </section>
 
+        <section className="tarjeta" aria-labelledby="tit-verdad">
+          <h2 id="tit-verdad">Lo que has contestado</h2>
+          <RespaldoVerdad />
+        </section>
+
         <section className="tarjeta" aria-labelledby="tit-config">
           <h2 id="tit-config">Para ajustar más</h2>
           <p className="nota-ajustes">
@@ -69,6 +75,59 @@ export function Ajustes({
       </main>
       <AvisoSeguridad />
     </div>
+  )
+}
+
+/**
+ * Cuánto se ha juntado y si está respaldado.
+ *
+ * No es una pantalla de estadísticas: es la única forma de notar que el
+ * respaldo dejó de funcionar. Sin esto, la sincronización puede fallar
+ * en silencio durante meses y los registros que Tommy cree estar
+ * juntando no existirían en ningún lado consultable.
+ */
+function RespaldoVerdad() {
+  const e = estadoRespaldo()
+  if (e.registros === 0 && e.archivo === 0) {
+    return (
+      <p className="nota-ajustes">
+        Todavía no hay nada. La app va a preguntarte cómo salió el viaje en
+        una fila del inicio, y guarda cada día su propio pronóstico.
+      </p>
+    )
+  }
+  const pendientes = e.registros - e.sincronizados
+  return (
+    <>
+      <p className="nota-ajustes">
+        {e.registros === 0 ? (
+          <>
+            Todavía no has contestado ningún día, pero la app ya está
+            archivando: <strong>{e.archivo}</strong> pronósticos guardados.
+          </>
+        ) : (
+          <>
+            <strong>{e.registros}</strong>{' '}
+            {e.registros === 1 ? 'día contestado' : 'días contestados'} ·{' '}
+            <strong>{e.archivo}</strong> pronósticos archivados.
+          </>
+        )}
+      </p>
+      {!e.activo ? (
+        <p className="nota-ajustes">
+          El respaldo en la nube está <strong>apagado</strong> en esta versión:
+          todo vive solo en este teléfono. Si lo borras o cambias de equipo, se
+          pierde.
+        </p>
+      ) : pendientes > 0 ? (
+        <p className="nota-ajustes">
+          Faltan <strong>{pendientes}</strong> por respaldar. Se suben solos
+          cuando haya señal.
+        </p>
+      ) : e.registros > 0 ? (
+        <p className="nota-ajustes">Todo respaldado.</p>
+      ) : null}
+    </>
   )
 }
 
