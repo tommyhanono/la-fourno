@@ -397,6 +397,47 @@ lluvia nunca es probable.
 
 ---
 
+### CERRADO — La honestidad no llegaba al lado de playa
+
+El lado del bote quedó avisando cuándo el pronóstico ya no le gana al
+promedio de la época, pero la semana de playa seguía mostrando ocho días
+con puntaje y cara de certeza. La limitación es del PRONÓSTICO, no del
+bote.
+
+Lo mal que se veía, en vivo: en Las Sirenas los dos días lejanos eran
+los de **mejor** puntaje (79 y 87) mientras los cercanos daban 0, 62,
+48, 0, 47, 47. La app vendía como mejores playas justo los días que
+menos puede predecir.
+
+Medido y **NO** cambiado, de paso: el score de playa resume el viento
+como MÁXIMO mientras el de navegación usa "típico ponderado al pico".
+Es una inconsistencia real, pero pasarla a típico mueve 2.18 pts de
+media y cambia el mejor día de playa en 0 de 12 semanas. Sería churn.
+Anotado en el código para que nadie lo "arregle".
+
+---
+
+### CERRADO — La verdad de campo podía fallar (y ensuciarse) en silencio
+
+Dos problemas del mismo tipo, en la tabla que menos puede tener datos
+falsos:
+
+**Se ensuciaba sola.** Los E2E y los probes manuales corren contra un
+preview local que SÍ tiene el `.env`, así que un click de prueba
+escribía en producción. Pasó dos veces y hubo que borrar los registros a
+mano. Bloquear los tests uno por uno no alcanza —hay que acordarse cada
+vez—, así que **la app ya no sincroniza desde localhost**. Se corta por
+host, que cubre siempre.
+
+**Podía fallar callada.** Si las variables no están puestas o el RPC
+rechaza siempre, se podría contestar durante meses creyendo que se
+juntan datos sin que hubiera nada en el servidor. Ajustes ahora muestra
+cuántos días van contestados, cuántos pronósticos archivados, y si el
+respaldo está apagado. No es una pantalla de estadísticas: es la única
+forma de notar que se rompió.
+
+---
+
 ### CERRADO — Guard de datos parciales
 
 `ResultadoScore` ahora trae `faltan[]` y `pesoFaltante`, no solo un
@@ -507,7 +548,7 @@ antes.
 ```
 npm run typecheck     # incluye los tests (tsc solo miraba src hasta ago-2026)
 npm run lint
-npm test              # 128 unit
+npm test              # 141 unit
 npm run test:e2e      # 19 E2E
 node scripts/audita-layout.mjs      # requiere preview en :4330
 node scripts/audita-contraste.mjs   # requiere preview en :4339
