@@ -219,6 +219,21 @@ function desacuerdoModelos(
   return Math.max(...porModelo) - Math.min(...porModelo)
 }
 
+/**
+ * Hasta qué día de anticipación el pronóstico todavía le gana al
+ * promedio de la época. Depende del MES: en seca los nortes se
+ * pronostican bien hasta el día 7; en lluviosa, la convección local
+ * deja de distinguirse del promedio a partir del día 6. Los números y
+ * su medición están en `calibracion.skillHorizonteDias`.
+ */
+export function horizonteDeSkill(dia: Date): number {
+  const mes = Number(claveDia(dia).slice(5, 7))
+  const seco = (CALIBRACION.mesesSecos as readonly number[]).includes(mes)
+  return seco
+    ? CALIBRACION.skillHorizonteDias.seca
+    : CALIBRACION.skillHorizonteDias.lluviosa
+}
+
 /** Primera hora con tormenta dentro de la jornada. */
 function primeraTormenta(f: PuntoForecast, inicio: Date, horas: number): Date | null {
   const codes = CALIBRACION.seguridad.tormentaCodes as readonly number[]
@@ -419,7 +434,7 @@ export function jornadasSemana(datos: DatosApp): DiaJornada[] {
       enCurso: inicio <= ahora,
       desacuerdo: desacuerdoModelos(datos, inicio, horas, mejor.punto),
       anticipacionDias: anticipacion,
-      fueraDeSkill: anticipacion > CALIBRACION.skillHorizonteDias,
+      fueraDeSkill: anticipacion > horizonteDeSkill(base),
       sol: {
         sale: parsePanama(f0.daily.sunrise[d]),
         sePone: parsePanama(f0.daily.sunset[d]),

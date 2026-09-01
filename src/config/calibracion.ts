@@ -298,28 +298,39 @@ export const CALIBRACION = {
   desacuerdoModelosPts: 20,
 
   /**
-   * Último día de anticipación en que el pronóstico le gana de verdad al
-   * simple promedio de la temporada. Más allá, la app lo dice.
+   * Último día de anticipación en que el pronóstico le gana de verdad
+   * al simple promedio de la temporada. Más allá, la app lo dice.
    *
-   * Medido el 31-ago-2026 (`scripts/medir-skill.mjs`): corredor
-   * marina+Contadora, horas 9-16, verdad = ERA5, ventana 1-jun a
-   * 20-ago-2026, n≈600 por horizonte, climatología de 2019-2025.
-   * Comparación PAREADA del MAE contra climatología, en nudos:
+   * ES ESTACIONAL, y no por gusto: se midió en las dos temporadas y dan
+   * distinto. Corredor marina+Contadora, horas 9-16, verdad = ERA5,
+   * n≈600 por horizonte, climatología 2019-2025, comparación PAREADA
+   * del MAE contra climatología en nudos (`scripts/medir-skill.mjs`):
    *
-   *   -1d −0.838 ±0.111   -2d −0.558 ±0.099   -3d −0.429 ±0.087
-   *   -4d −0.213 ±0.092   -5d −0.195 ±0.085   ← hasta acá gana el modelo
-   *   -6d +0.049 ±0.081   -7d +0.146 ±0.085   ← empate estadístico
+   *   LLUVIOSA (1-jun a 20-ago-2026)
+   *     -1d −0.838 ±0.111 · -3d −0.429 ±0.087 · -5d −0.195 ±0.085
+   *     -6d +0.049 ±0.081 ← EMPATE · -7d +0.146 ±0.085 ← EMPATE
    *
-   * O sea: del día 6 en adelante el pronóstico no aporta nada por
-   * encima de "así viene esta época del año". Los días se siguen
-   * mostrando —Tommy pidió ver el domingo que viene— pero sin fingir
-   * una precisión que la medición no respalda.
+   *   SECA (5-ene a 25-mar-2026)
+   *     -1d −1.354 ±0.121 · -3d −1.154 ±0.126 · -5d −0.760 ±0.129
+   *     -6d −0.773 ±0.127 · -7d −0.564 ±0.142 ← gana en TODOS
    *
-   * OJO: medido en temporada LLUVIOSA. En seca los nortes son forzados
-   * por sinóptica y la predictibilidad podría llegar más lejos. Ver
-   * ACCURACY.md antes de mover este número.
+   * En seca los nortes vienen forzados por sinóptica y se pronostican
+   * bien hasta el día 7; en lluviosa manda la convección local, que a
+   * partir del día 6 no se distingue del promedio de la época.
+   *
+   * Poner 5 todo el año castigaba de más justo en la temporada en que
+   * más se sale. Poner 7 todo el año prometería precisión que en
+   * lluviosa no existe.
    */
-  skillHorizonteDias: 5,
+  skillHorizonteDias: { seca: 7, lluviosa: 5 },
+
+  /**
+   * Meses de temporada seca en Panamá (1 = enero). Se usa solo para
+   * elegir el horizonte de skill. Mayo y noviembre son de transición y
+   * quedan del lado LLUVIOSO a propósito: ante la duda, el valor
+   * conservador.
+   */
+  mesesSecos: [12, 1, 2, 3, 4],
 
   /** Etiquetas de calidad del score total. */
   niveles: [

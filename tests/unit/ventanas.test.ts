@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { jornadasSemana, diasPlaya } from '../../src/lib/ventanas'
+import { jornadasSemana, diasPlaya, horizonteDeSkill } from '../../src/lib/ventanas'
 import { datosSinteticos, DIA_BASE } from '../fixtures/genera'
 import { horaPanama } from '../../src/lib/time'
 import { PUNTOS } from '../../src/config/puntos'
@@ -193,7 +193,7 @@ describe('horizonte de skill', () => {
   it('los días dentro del horizonte medido NO se marcan', () => {
     const dias = jornadasSemana(datosSinteticos())
     for (const d of dias) {
-      if (d.anticipacionDias <= CALIBRACION.skillHorizonteDias) {
+      if (d.anticipacionDias <= horizonteDeSkill(d.dia)) {
         expect(d.fueraDeSkill).toBe(false)
       }
     }
@@ -201,9 +201,31 @@ describe('horizonte de skill', () => {
 
   it('pasado el horizonte sí, porque ahí el modelo empata con climatología', () => {
     const dias = jornadasSemana(datosSinteticos())
-    const lejanos = dias.filter((d) => d.anticipacionDias > CALIBRACION.skillHorizonteDias)
+    const lejanos = dias.filter((d) => d.anticipacionDias > horizonteDeSkill(d.dia))
     expect(lejanos.length).toBeGreaterThan(0)
     expect(lejanos.every((d) => d.fueraDeSkill)).toBe(true)
+  })
+
+  it('el horizonte es estacional: en seca llega a 7, en lluviosa a 5', () => {
+    // No es un detalle de configuración: se midió en las dos temporadas
+    // y dan distinto. En seca los nortes se pronostican bien hasta el
+    // día 7; en lluviosa la convección local deja de distinguirse del
+    // promedio a partir del día 6.
+    expect(horizonteDeSkill(new Date('2026-02-15T12:00:00-05:00'))).toBe(7)
+    expect(horizonteDeSkill(new Date('2026-08-15T12:00:00-05:00'))).toBe(5)
+    // Los meses de transición van del lado conservador.
+    expect(horizonteDeSkill(new Date('2026-05-15T12:00:00-05:00'))).toBe(5)
+    expect(horizonteDeSkill(new Date('2026-11-15T12:00:00-05:00'))).toBe(5)
+    expect(horizonteDeSkill(new Date('2026-12-15T12:00:00-05:00'))).toBe(7)
+  })
+
+  it('en agosto (lluviosa) los días 6 y 7 sí quedan marcados', () => {
+    // El fixture es de agosto, así que el horizonte es 5.
+    const dias = jornadasSemana(datosSinteticos())
+    const d6 = dias.find((d) => d.anticipacionDias === 6)
+    const d7 = dias.find((d) => d.anticipacionDias === 7)
+    expect(d6?.fueraDeSkill).toBe(true)
+    expect(d7?.fueraDeSkill).toBe(true)
   })
 
   it('la anticipación no depende del índice del arreglo, sino de la fecha', () => {

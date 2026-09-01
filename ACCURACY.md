@@ -97,7 +97,7 @@ que abra la app lo puede leer. No es un secreto, es una molestia para el
 que pase por ahí. Si algún día aparece basura en las tablas, se rota el
 valor en `fourno_config` y en Vercel.
 
-### CERRADO — El pronóstico tiene skill, pero se acaba en el día 5
+### CERRADO — El pronóstico tiene skill: hasta el día 5 en lluviosa, hasta el 7 en seca
 
 **Medido el 1-sep-2026** (`scripts/medir-skill.mjs`). Verdad = ERA5,
 corredor marina+Contadora, horas 9-16, ventana 1-jun a 20-ago-2026,
@@ -132,11 +132,28 @@ previous-runs-api para fechas pasadas es **idénticamente ERA5** (MAE
 mismo — pero ERA5 sigue siendo un reanálisis, no una boya, y no hay
 observación directa de viento en el Golfo que sea gratis.
 
-**Lo que queda abierto:** esto es temporada LLUVIOSA. La API de corridas
-anteriores solo llega ~92 días atrás, así que en seca no hay pronósticos
-viejos que verificar. En seca los nortes son forzados por sinóptica y la
-predictibilidad podría llegar más lejos: habría que repetirlo entre
-enero y marzo y, si el horizonte se estira, subir `skillHorizonteDias`.
+**Y en temporada seca llega hasta el día 7.** Se creía imposible de
+medir porque `past_days` solo cubre 92 días — pero la API acepta
+`start_date`/`end_date` explícitas y responde para enero-marzo. Misma
+medición, 5-ene a 25-mar-2026, n≈600 por horizonte:
+
+| lead | modelo | persistencia | climatología | pareado vs clima |
+|---|---|---|---|---|
+| −1d | 1.86 | 4.32 | 3.35 | −1.354 ±0.121 ✔ |
+| −3d | 2.20 | 4.41 | 3.36 | −1.154 ±0.126 ✔ |
+| −5d | 2.63 | 4.15 | 3.39 | −0.760 ±0.129 ✔ |
+| −6d | 2.64 | 3.81 | 3.41 | −0.773 ±0.127 ✔ |
+| −7d | 2.84 | 3.97 | 3.40 | −0.564 ±0.142 ✔ |
+
+Le gana a climatología en **7 de 7**, todos concluyentes. En seca los
+nortes vienen forzados por sinóptica y se pronostican bien toda la
+semana; en lluviosa manda la convección local, que se vuelve
+indistinguible del promedio a partir del día 6.
+
+Por eso `skillHorizonteDias` es **estacional**: 7 en seca (dic-abr),
+5 en lluviosa. Mayo y noviembre son transición y van del lado
+conservador. Poner 5 todo el año castigaba de más justo en la temporada
+en que más se sale.
 
 ---
 
@@ -431,7 +448,8 @@ antes.
 - Rango de marea: **4.5–4.7 m** en sicigia, **2.7 m** en cuadratura
 - CAPE típico de jornada: lluviosa p50 **3062** / seca p50 **1016**
 - Días con tormenta en la jornada: lluviosa **35 %** / seca **0 %**
-- MAE del viento: **2.38 kt a 1 día**, **3.48 kt a 7 días** (verdad ERA5)
+- MAE del viento en lluviosa: **2.38 kt a 1 día**, **3.48 a 7 días**
+- MAE del viento en seca: **1.86 kt a 1 día**, **2.84 a 7 días** (mejor)
 - Desfase de la marea CMEMS antes de corregir: **−27 min** en Panamá
 - Desacuerdo entre modelos (viento+sol, de 75): marca **1 de 8 días** con umbral 20
 - Desacuerdo en nubosidad: mediana **10.5 pts de 30** — el doble que el de viento

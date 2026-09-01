@@ -74,10 +74,15 @@ async function traer(nombre, url) {
 const TZ = 'America%2FPanama'
 const COMUN = `&timezone=${TZ}&wind_speed_unit=kn&cell_selection=sea`
 
-const urlPrevias = (p, dias) =>
+/**
+ * Pronósticos viejos por horizonte. Acepta fechas explícitas, no solo
+ * `past_days`: verificado el 1-sep-2026 que la API responde para
+ * enero-marzo, o sea que la temporada SECA sí se puede medir.
+ */
+const urlPrevias = (p, desde, hasta) =>
   `https://previous-runs-api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}` +
   `&hourly=${LEADS.map((n) => `wind_speed_10m_previous_day${n}`).join(',')}` +
-  `&past_days=${dias}&forecast_days=1${COMUN}`
+  `&start_date=${desde}&end_date=${hasta}${COMUN}`
 
 const urlArchivo = (p, desde, hasta) =>
   `https://archive-api.open-meteo.com/v1/archive?latitude=${p.lat}&longitude=${p.lon}` +
@@ -107,10 +112,6 @@ const media = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length
 async function main() {
   const desde = process.argv[2] ?? '2026-06-01'
   const hasta = process.argv[3] ?? '2026-08-20'
-  const dias = Math.min(
-    92,
-    Math.round((Date.now() - new Date(`${desde}T00:00:00Z`).getTime()) / 86400_000),
-  )
 
   console.log(`Ventana de verificación: ${desde} → ${hasta}`)
   console.log(`Corredor: ${PUNTOS.map((p) => p.id).join(' + ')}, horas ${HORA_DESDE}-${HORA_HASTA}\n`)
@@ -126,7 +127,9 @@ async function main() {
   // --- Pronósticos a N días ---
   const previas = []
   for (const p of PUNTOS) {
-    previas.push(await traer(`prev-${p.id}-${dias}`, urlPrevias(p, dias)))
+    previas.push(
+      await traer(`prev-${p.id}-${desde}-${hasta}`, urlPrevias(p, desde, hasta)),
+    )
   }
   const pronostico = {}
   for (const n of LEADS) {
