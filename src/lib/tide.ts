@@ -4,10 +4,17 @@
 // horas alrededor de cada pico: con datos horarios el instante del pico
 // cae entre muestras, y el vértice de la parábola lo recupera.
 //
-// QUÉ SE VERIFICÓ DE VERDAD (31-ago-2026, Contadora, 8 días)
-// No hay comparación contra la tabla armónica oficial de Balboa: acá
-// no se validó eso, y antes este comentario lo afirmaba de más. Lo que
-// sí se comprobó es la consistencia física de la serie:
+// QUÉ SE VERIFICÓ, Y HASTA DÓNDE
+// Hay dos comprobaciones, y conviene no confundirlas.
+//
+// 1) Contraste externo (9-ago-2026): contra la tabla armónica de Balboa
+//    de tide-forecast.com — fuente COMERCIAL, no oficial. Rango del
+//    ciclo 3.23 m modelo vs 3.18 m tabla, y desfase de ~30 min en dos
+//    extremos (bajamar 5:25 vs 6:01 am, pleamar 11:45 vs 12:17 pm).
+//    Son DOS extremos de UN día: alcanza para descartar que el modelo
+//    esté groseramente corrido, no para hablar de "error típico".
+//
+// 2) Consistencia física de la serie (31-ago-2026, Contadora, 8 días):
 //   · 30 extremos en 8 días, 15 pleamares y 15 bajamares (semidiurna).
 //   · Pleamar→pleamar: 12.48 h medidos contra 12.42 h teóricos de la
 //     componente M2. Error 0.5 %, ~4 min por ciclo.

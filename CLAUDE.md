@@ -10,6 +10,22 @@ Vite + React + TypeScript. Sin backend. Deploy en **Vercel** → <https://la-fou
 
 - `npm run dev` · `npm run build` · `npm run preview`
 - `npm test` (vitest) · `npm run test:e2e` (Playwright) · `npm run lint` (oxlint)
+- `npm run typecheck` — **incluye los tests**. `tsc -b` solo mira `src`, así que
+  un fixture con la forma equivocada pasaba sin ruido. Correr los dos.
+
+## Antes de tocar el score o las fuentes de datos
+
+Leer **`ACCURACY.md`**: qué tan cierto es lo que dice la app, qué ya se
+verificó (para no repetirlo) y qué falta. Trae los números base y las
+recetas para medir contra las APIs.
+
+Dos ideas que ya se probaron y **se descartaron con datos** están anotadas
+ahí y en `DECISIONES.md` §13. La más tentadora: medir el mar picado con
+`wind_wave_*` en vez del período combinado. Suena obvio, empeora el score.
+No la reimplementes sin leer la nota en `score.ts`.
+
+Regla de la casa para esto: **medir primero, implementar después**, y botar
+lo implementado si el dato no lo respalda.
 
 ## Dónde se configura
 

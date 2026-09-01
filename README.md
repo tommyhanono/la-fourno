@@ -43,11 +43,23 @@ Condiciones + recomendador. Nada más, a propósito.
 | **Marea** | Open-Meteo Marine `sea_level_height_msl` (modelo Copernicus/CMEMS) |
 
 **La marea es SIEMPRE un estimado** y el UI lo dice: no hay fuente
-armónica gratuita con API para Balboa (NOAA ya no la publica). El
-modelo se validó contra la tabla armónica de Balboa: rango casi
-idéntico y extremos con ~±30 min de desfase — suficiente para decidir
-el día, **no** para entrar a un bajo con la quilla justa. Detalle en
-[DECISIONES.md](DECISIONES.md).
+armónica gratuita con API para Balboa (NOAA ya no la publica).
+
+Lo que sí está comprobado es que la serie se comporta como una marea
+real del Golfo: 15 pleamares y 15 bajamares en 8 días, pleamar→pleamar
+cada 12.48 h contra 12.42 h teóricos de la componente M2, y el ciclo de
+sicigia a cuadratura en su sitio (el rango cae de 4.52 m a 2.70 m en
+seis días y vuelve a crecer). Sirve para decidir el día, **no** para
+entrar a un bajo con la quilla justa.
+
+Contra una tabla externa de Balboa (tide-forecast.com, comercial) el
+rango dio casi idéntico —3.23 m modelo vs 3.18 m tabla— con ~30 min de
+desfase. Pero eso son **dos extremos de un día**: sirve para descartar
+que el modelo esté muy corrido, no para prometer media hora de
+precisión siempre. El contraste contra una fuente oficial panameña,
+sobre varias semanas, sigue pendiente. Detalle en
+[DECISIONES.md](DECISIONES.md) §13 y pendientes en
+[ACCURACY.md](ACCURACY.md).
 
 Los datos se cachean 30 min en el teléfono; si la red falla, la app
 muestra lo último que llegó y lo dice — la hora del dato siempre está

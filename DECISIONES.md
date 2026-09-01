@@ -379,11 +379,22 @@ Se agregó también `enCurso`: con la jornada ya arrancada la forma del día
 tampoco se muestra, porque a las 2 pm "está mejor temprano" habla de una
 mañana que ya pasó. Antes se decía igual.
 
-### 13.5 La marea: qué se verificó de verdad
+### 13.5 La marea: qué se verificó y hasta dónde
 
 `tide.ts` afirmaba *"error típico validado: ~±30 min contra la tabla
-armónica de Balboa"*. **Esa validación nunca se hizo.** Corregido en el
-comentario. Lo que sí se comprobó (Contadora, 8 días):
+armónica de Balboa"*. La frase decía de más, pero **no era inventada**:
+sí existe el contraste del 9-ago-2026 (§1), contra la tabla de
+tide-forecast.com — fuente **comercial, no oficial** — con rango 3.23 m
+modelo vs 3.18 m tabla y ~30 min de desfase en **dos extremos de un
+día**. Eso descarta que el modelo esté groseramente corrido; no alcanza
+para llamarlo "error típico", que es lo que sugería la redacción.
+Corregido en el comentario para que diga el alcance real.
+
+Queda pendiente el contraste contra una fuente **oficial** panameña y
+sobre más de un día: si CMEMS tuviera un sesgo sistemático de 20-30 min,
+todo lo de abajo daría igual de bien. Ver `ACCURACY.md`.
+
+Lo que sí se comprobó ahora (Contadora, 8 días):
 
 - 30 extremos, 15 pleamares y 15 bajamares: semidiurna limpia.
 - Pleamar→pleamar **12.48 h** contra 12.42 h teóricos de M2 (0.5 %).
