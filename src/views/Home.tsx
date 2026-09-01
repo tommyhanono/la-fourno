@@ -15,7 +15,7 @@ import type { EstadoDatos } from '../state/hooks'
 import type { Unidades } from '../lib/units'
 import { fmtViento, fmtOla, KT_A_KMH, M_A_FT } from '../lib/units'
 import { jornadasSemana, diasPlaya, type RangoDia, type DiaJornada, type FormaDia } from '../lib/ventanas'
-import { nombreDia, horaCorta, horaMuyCorta, parsePanama } from '../lib/time'
+import { nombreDia, horaCorta, horaMuyCorta, indiceHoraActual } from '../lib/time'
 import { Header, AvisoSeguridad } from '../components/Marco'
 import { BadgeScore, Desglose } from '../components/Desglose'
 import { Icono } from '../components/Icono'
@@ -431,7 +431,10 @@ function FilaPunto({
     } else {
       ahoraTxt = `${fmtViento(viento, unidades)} · ${cieloDeCodigo(code).texto}`
       if (datos) {
-        const hoy = diasPlaya(datos, p.id)[0]
+        // Por FECHA, no por índice: la etiqueta dice "playa hoy", y con
+        // el caché cruzando la medianoche el primer día del pronóstico
+        // puede ser ayer. Mismo cuidado que en jornadasSemana.
+        const hoy = diasPlaya(datos, p.id).find((d) => d.anticipacionDias === 0)
         if (hoy) playaScore = hoy.score.total
       }
     }
@@ -469,12 +472,4 @@ function FilaPunto({
   )
 }
 
-function indiceHoraActual(times: string[]): number {
-  const ahora = Date.now()
-  let mejor = 0
-  for (let i = 0; i < times.length; i++) {
-    if (parsePanama(times[i]).getTime() <= ahora) mejor = i
-    else break
-  }
-  return mejor
-}
+

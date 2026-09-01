@@ -106,3 +106,28 @@ export function haceCuanto(iso: string): string {
   const h = Math.floor(min / 60)
   return `hace ${h} h ${min % 60 ? `${min % 60} min` : ''}`.trim()
 }
+
+/**
+ * Índice de la hora VIGENTE en una serie horaria: la última que ya
+ * empezó. Estaba duplicada, idéntica, en Home y en PuntoVista — dos
+ * copias de lo mismo que podían derivar sin que nadie lo notara.
+ *
+ * Bordes, que antes pasaban en silencio y ahora están declarados:
+ *  · Si toda la serie es futura (el pronóstico empieza mañana), devuelve
+ *    la primera hora. Es lo más cercano que hay.
+ *  · Si toda la serie es pasada (caché muy viejo), devuelve la última.
+ *    La app ya avisa aparte de que el dato está viejo; acá no se puede
+ *    hacer nada mejor que mostrar lo último que hubo.
+ *  · Serie vacía: 0, y quien llame se encontrará un undefined, que es
+ *    lo mismo que le pasaría con cualquier otro índice.
+ */
+export function indiceHoraActual(times: string[], ahora = Date.now()): number {
+  if (times.length === 0) return 0
+  let mejor = -1
+  for (let i = 0; i < times.length; i++) {
+    if (parsePanama(times[i]).getTime() <= ahora) mejor = i
+    else break
+  }
+  // -1 = ninguna hora empezó todavía: la primera es la más cercana.
+  return mejor === -1 ? 0 : mejor
+}

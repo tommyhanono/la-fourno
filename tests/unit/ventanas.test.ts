@@ -240,6 +240,41 @@ describe('horizonte de skill', () => {
   })
 })
 
+describe('días de playa: la misma honestidad que el bote', () => {
+  beforeEach(() => {
+    vi.setSystemTime(new Date(`${DIA_BASE}T05:00:00-05:00`))
+  })
+
+  it('sabe a cuántos días está cada uno', () => {
+    const dias = diasPlaya(datosSinteticos(), 'las-sirenas')
+    expect(dias.find((d) => d.clave === DIA_BASE)!.anticipacionDias).toBe(0)
+    expect(dias.find((d) => d.clave === '2026-08-17')!.anticipacionDias).toBe(7)
+  })
+
+  it('los días lejanos se marcan igual que en el lado del bote', () => {
+    // La limitación es del PRONÓSTICO, no del bote: si a 7 días el
+    // modelo no le gana al promedio de la época, tampoco se lo gana
+    // para decidir si el sábado hay playa.
+    const dias = diasPlaya(datosSinteticos(), 'las-sirenas')
+    const lejanos = dias.filter((d) => d.anticipacionDias > horizonteDeSkill(d.dia))
+    expect(lejanos.length).toBeGreaterThan(0)
+    expect(lejanos.every((d) => d.fueraDeSkill)).toBe(true)
+    const cercanos = dias.filter((d) => d.anticipacionDias <= horizonteDeSkill(d.dia))
+    expect(cercanos.every((d) => !d.fueraDeSkill)).toBe(true)
+  })
+
+  it('"playa hoy" se busca por fecha, no por índice', () => {
+    // La fila del inicio dice "playa hoy". Con el caché cruzando la
+    // medianoche, el primer día del pronóstico puede ser ayer, y ahí
+    // el índice 0 mentiría.
+    vi.setSystemTime(new Date('2026-08-12T10:00:00-05:00'))
+    const dias = diasPlaya(datosSinteticos(), 'las-sirenas')
+    const hoy = dias.find((d) => d.anticipacionDias === 0)!
+    expect(hoy.clave).toBe('2026-08-12')
+    expect(dias[0].clave).not.toBe(hoy.clave)
+  })
+})
+
 describe('desacuerdo entre modelos', () => {
   beforeEach(() => {
     vi.setSystemTime(new Date(`${DIA_BASE}T05:00:00-05:00`))

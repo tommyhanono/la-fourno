@@ -21,6 +21,7 @@ import {
   claveDia,
   ahoraPanama,
   nombreDia,
+  indiceHoraActual,
 } from '../lib/time'
 
 export function PuntoVista({
@@ -284,6 +285,16 @@ function VistaPlaya({
               </span>
               <BadgeScore score={d.score} />
               <Desglose score={d.score} id={`playa-${d.clave}`} />
+              {/* Misma honestidad que el lado del bote: pasado el
+                  horizonte medido el número deja de ser mejor que el
+                  promedio de la época, y eso no depende de si vas en
+                  bote o a la playa. */}
+              {d.fueraDeSkill && (
+                <p className="dia-dudoso" data-motivo="horizonte">
+                  A esta distancia el pronóstico ya no le gana al promedio de la
+                  época.
+                </p>
+              )}
             </li>
           ))}
         </ul>
@@ -410,16 +421,6 @@ function etiquetaUv(uv: number | null | undefined): string | undefined {
   if (uv >= 6) return 'alto'
   if (uv >= 3) return 'moderado'
   return 'bajo'
-}
-
-function indiceHoraActual(times: string[]): number {
-  const ahora = Date.now()
-  let mejor = 0
-  for (let i = 0; i < times.length; i++) {
-    if (parsePanama(times[i]).getTime() <= ahora) mejor = i
-    else break
-  }
-  return mejor
 }
 
 /** "9 am" a partir de la hora entera de la calibración. */

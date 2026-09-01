@@ -468,6 +468,15 @@ export interface DiaPlaya {
   score: ResultadoScore
   uvMax: number | null
   tempMax: number | null
+  /** Días de anticipación: 0 = hoy. */
+  anticipacionDias: number
+  /**
+   * Mismo criterio que el lado del bote: pasado el horizonte medido, el
+   * pronóstico ya no le gana al promedio de la época. La limitación es
+   * del pronóstico, no del bote — así que la playa tampoco puede
+   * mostrar un número de 7 días como si fuera firme.
+   */
+  fueraDeSkill: boolean
 }
 
 export function diasPlaya(datos: DatosApp, puntoId: string): DiaPlaya[] {
@@ -476,8 +485,10 @@ export function diasPlaya(datos: DatosApp, puntoId: string): DiaPlaya[] {
   if (!f) return []
   const { desdeHora, hastaHora } = CALIBRACION.jornada
   const out: DiaPlaya[] = []
+  const hoy0 = parsePanama(`${claveDia(new Date())}T00:00`)
   for (let d = 0; d < f.daily.time.length; d++) {
     const base = parsePanama(`${f.daily.time[d]}T00:00`)
+    const anticipacion = Math.round((base.getTime() - hoy0.getTime()) / 86400_000)
     // Mismas horas que la jornada de navegación: 9 am – 4 pm.
     const ii = indicesBloque(
       f.hourly.time,
@@ -498,6 +509,8 @@ export function diasPlaya(datos: DatosApp, puntoId: string): DiaPlaya[] {
       }),
       uvMax: maxNum(ii.map((k) => f.hourly.uv_index[k])),
       tempMax: maxNum(ii.map((k) => f.hourly.temperature_2m[k])),
+      anticipacionDias: anticipacion,
+      fueraDeSkill: anticipacion > horizonteDeSkill(base),
     })
   }
   return out
