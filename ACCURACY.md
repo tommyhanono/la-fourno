@@ -40,7 +40,7 @@ que sea porque sospechas **deriva**, no porque no se hizo.
 | Celda de mar vs tierra para el viento (31-ago-2026) | Arreglado con `cell_selection=sea`. Cambiaba 4 de 9 puntos, hasta +44 % en el máximo de Coronado | `api.ts`, test en `tests/unit/api.test.ts` |
 | Medir el picado con `wind_wave_*` (31-ago-2026) | **Probado y descartado.** `wave_period` ya es media ponderada por energía | nota larga en `score.ts`, contribución `mar-corto` |
 | Física de la marea CMEMS (31-ago-2026) | Sana: M2 a 12.48 h vs 12.42 h teóricos, sicigia 4.5–4.7 m, ciclo correcto. Ojo: el contraste **externo** sigue abierto | `tide.ts` |
-| Umbral CAPE 2500 J/kg (31-ago-2026) | Bien puesto: percentil ~93, dispara en 6.3 % de las horas | `calibracion.ts` |
+| Umbral CAPE (1-sep-2026) | **CORREGIDO**: 2500 disparaba en el 44 % de los días de lluviosa. Subido a 3800 (17 %). La medición del 31-ago que lo daba por bueno salía de 8 días calmados | `tests/unit/umbrales-seguridad.test.ts` |
 | Error del pronóstico por anticipación (1-sep-2026) | SÍ crece: 2.38 kt a 1 día → 3.48 a 7. Empata con climatología en los días 6-7. **Corrige la medición del 31-ago** | `scripts/medir-skill.mjs` |
 | Contraste externo de la marea (1-sep-2026) | n=356 contra NOAA Balboa. Sesgo de −27 min **corregido**; error típico 27.0 → 3.6 min | `scripts/medir-marea.mjs`, test de regresión |
 | Estacionalidad de la calibración (1-sep-2026) | No hace falta: separa días en seca y en lluviosa | `scripts/medir-estaciones.mjs` |
@@ -265,6 +265,49 @@ dormidas en días buenos, y eso también se prueba.
 
 ---
 
+### CERRADO — El umbral de CAPE era papel tapiz en temporada lluviosa
+
+**Corrige la conclusión del 31-ago-2026**, que decía que 2500 J/kg era
+el percentil 93 y estaba bien puesto. Esa medición salía de **8 días**
+de una semana inusualmente calmada.
+
+Para medirlo de verdad hacía falta un dataset que ERA5 no da: el
+archivo de reanálisis **no trae CAPE ni códigos de tormenta**. La
+solución fue `historical-forecast-api.open-meteo.com`, que guarda las
+corridas de pronóstico pasadas y sí los trae. Con 86 días reales de
+lluviosa y 60 de seca:
+
+| | lluviosa (86 d) | seca (60 d) |
+|---|---|---|
+| CAPE típico de jornada (p50) | **3062** | 1016 |
+| p90 | 4188 | 2093 |
+| días con alguna tormenta | 35 % | **0 %** |
+
+El trópico corre CAPE alto de rutina: 3000 J/kg es un martes cualquiera
+en agosto, no una señal. Con 2500 el aviso salía en el **44 %** de los
+días sin tormenta.
+
+Umbrales medidos (% de días de lluviosa sin tormenta que dispararían):
+2500 → 44 % · 3000 → 35 % · 3500 → 24 % · **3800 → 17 %** · 4000 → 9 %.
+
+Subido a **3800**. Queda dormido en seca (0 %), que es lo correcto: sin
+convección no hay nada que avisar.
+
+De paso quedaron medidos los otros dos umbrales que tampoco se podían
+probar: la bandera de tormenta marca **1 %** de los días de lluviosa
+(raya dura bien dormida, aunque el 35 % de los días tenga algo de
+tormenta y penalice en proporción) y la lluvia fuerte, **5 %**.
+
+La probabilidad de lluvia dispara en el 92 % de los días, y **está
+bien**: no es una raya dura, el castigo es proporcional (12 pts ×
+prob/100), así que discrimina por magnitud. Si algún día se convierte
+en umbral, hay que remedirlo.
+
+Todo esto quedó como test de regresión con fixture: si alguien vuelve a
+bajar el CAPE a 2500, el test falla diciendo "44.19 %".
+
+---
+
 ### CERRADO — El aviso de desacuerdo ahora también mira el sol
 
 **Medido el 1-sep-2026.** El aviso miraba solo el viento, por ser el
@@ -350,6 +393,21 @@ por si alguna vez hace falta generarlas localmente. Otras estaciones del
 Pacífico para contrastar: Puntarenas 9684403, La Libertad 9991474, San
 Cristóbal (Galápagos) 9992401.
 
+**Tormentas, CAPE y probabilidad de lluvia** — ERA5 NO los trae. Hay
+que usar el archivo de PRONÓSTICOS, que guarda las corridas pasadas:
+
+```
+https://historical-forecast-api.open-meteo.com/v1/forecast
+  ?latitude=...&longitude=...
+  &hourly=weather_code,cape,precipitation_probability,cloud_cover
+  &start_date=2026-06-01&end_date=2026-08-25
+  &timezone=America%2FPanama&cell_selection=sea
+```
+
+Es la única forma de verificar `capeAltoJkg`, `tormentaPeligroFrac` y
+`lluviaFuerteMmH`. Fue justo por no tenerla que el CAPE pasó meses mal
+puesto.
+
 **Ver la app con datos reales** — levantar `npm run preview -- --port 4330`
 y manejarla con Playwright. Los auditores (`scripts/audita-layout.mjs`,
 `scripts/audita-contraste.mjs`) usan la API real, no fixtures. Y **mirar
@@ -371,7 +429,8 @@ antes.
 - Viento medio de jornada en el corredor, temporada lluviosa: **4–6 kt**
 - Chop del viento por rango: 0–5 kt → 0.04 m · 8–12 kt → 0.25 m · 15+ kt → 0.62 m
 - Rango de marea: **4.5–4.7 m** en sicigia, **2.7 m** en cuadratura
-- CAPE en Panamá, agosto: mediana **1740**, p90 2360 J/kg
+- CAPE típico de jornada: lluviosa p50 **3062** / seca p50 **1016**
+- Días con tormenta en la jornada: lluviosa **35 %** / seca **0 %**
 - MAE del viento: **2.38 kt a 1 día**, **3.48 kt a 7 días** (verdad ERA5)
 - Desfase de la marea CMEMS antes de corregir: **−27 min** en Panamá
 - Desacuerdo entre modelos (viento+sol, de 75): marca **1 de 8 días** con umbral 20

@@ -211,7 +211,7 @@ export const CALIBRACION = {
      * al menos esta fracción de la jornada. En los bloques de 2 h no
      * aplica: ahí cualquier tormenta es peligro, sin negociar.
      */
-    tormentaPeligroFrac: 0.35,
+    tormentaPeligroFrac: 0.35, // medido: marca 1 % de los días de lluviosa
     /**
      * Viento sostenido a partir del cual el día se marca PELIGRO, sin
      * depender de la curva de puntaje. La curva reparte puntos; esto
@@ -220,9 +220,31 @@ export const CALIBRACION = {
      * "mala idea".
      */
     vientoPeligrosoKt: 22,
-    capeAltoJkg: 2500, // atmósfera muy cargada sin tormenta declarada
+    /**
+     * Atmósfera muy cargada SIN tormenta declarada: el proxy para
+     * cuando el modelo no marca 95/96/99 pero las condiciones están
+     * puestas. Solo aplica si no hay tormenta declarada.
+     *
+     * CORRIGE la conclusión del 31-ago-2026, que decía que 2500 era el
+     * percentil 93 y estaba bien puesto. Esa medición salió de 8 días
+     * de una semana inusualmente calmada. Con 86 días reales de
+     * pronóstico histórico (jun-ago 2026), el CAPE típico de jornada
+     * en el corredor da p10=1755, p50=3062, p90=4188: 2500 disparaba en
+     * el 44 % de los días sin tormenta. Papel tapiz.
+     *
+     * El trópico corre CAPE alto de rutina — 3000 J/kg es un martes
+     * cualquiera en Panamá en agosto, no una señal. Umbrales medidos
+     * sobre esos 86 días (% de días sin tormenta que dispararían):
+     *   2500 → 44 % · 3000 → 35 % · 3500 → 24 % · 3800 → 17 % · 4000 → 9 %
+     *
+     * 3800 deja el aviso en una minoría real. En temporada seca el CAPE
+     * típico es p50=1016 con máximo 3266 y CERO tormentas en 60 días,
+     * así que el término queda dormido ahí — que es lo correcto: sin
+     * convección no hay nada que avisar.
+     */
+    capeAltoJkg: 3800,
     capeAltoPenal: 20,
-    lluviaFuerteMmH: 4,
+    lluviaFuerteMmH: 4, // medido: 5 % de los días de lluviosa
     lluviaFuertePenal: 25,
     // Mar corto y picado: mucha altura para poco período.
     // ratio = altura(m) / período(s). 1 m a 5 s = 0.2 → castiga.
