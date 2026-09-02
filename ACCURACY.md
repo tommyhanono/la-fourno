@@ -65,11 +65,21 @@ se muestra no está copiado a mano en ningún lado.
 | viento (kt) | 2.51 | 2.77 | 2.93 | 3.09 | ERA5 |
 | ráfaga (kt) | 3.55 | 3.81 | 3.74 | 5.01 | ERA5 |
 | **nubosidad (%)** | **18.85** | **22.13** | **23.81** | **26.20** | ERA5 |
-| ola (m) | 0.02 | 0.05 | 0.06 | 0.12 | modelo |
-| período (s) | 0.50 | 1.00 | 1.25 | 1.54 | modelo |
+| ola (m) | 0.02 | 0.05 | 0.06 | 0.12 | modelo ⚠️ |
+| período (s) | 0.50 | 1.00 | 1.25 | 1.54 | modelo ⚠️ |
+
+⚠️ **Las dos filas de mar NO son error real.** La "verdad" ahí es el
+propio modelo de oleaje reanalizado: mide consistencia, no exactitud.
+La incertidumbre real de la ola se midió aparte —discrepancia entre
+cuatro modelos globales, **0.30 m de media** (ver ronda 11)— y es unas
+**15 veces mayor** que este 0.02. Nunca citar esta fila como "cuánto se
+equivoca la ola".
 
 **Sesgo** (positivo = el modelo pronostica de más): viento −0.14 a
 −1.56 · ráfaga −1.93 a −3.63 · nubosidad +3.92 a +12.71.
+
+*(La fila de nubosidad quedó como registro histórico: desde el 1-sep-2026
+el término de sol ya no sale de ahí, sino de la radiación. Ver ronda 11.)*
 
 Dos cosas de ahí que importan:
 

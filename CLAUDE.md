@@ -73,7 +73,31 @@ Ya pasó dos veces que pruebas locales escribieran en la tabla de
 producción. Si vuelve a pasar, el problema está en el servidor, no en
 parchear un test más.
 
+## La regla de honestidad
+
+Este repo se trabaja midiendo, no suponiendo. Vale para cualquier
+cambio futuro:
+
+1. **Ninguna afirmación de exactitud sin n, fecha y fuente.** Si no se
+   midió, se escribe "sin medir". Un número inventado es peor que un
+   hueco declarado.
+2. **Medir antes de implementar, y botar lo implementado si el dato no
+   lo respalda.** Ya pasó: la probabilidad v1 se tiró entera porque el
+   diagrama de confiabilidad mostró 89 % prometido contra 45 % cumplido.
+3. **Lo que se declara en un `.md` no protege a nadie.** Las tres
+   declaraciones que van en pantalla —marea "estimada", incertidumbre
+   de la ola, pasos sin velocidad— tienen test que falla si desaparecen.
+   La de la ola se perdió una vez: quedó el CSS y el JSX nunca llegó.
+4. **Ningún test ni probe escribe en producción**, y si esa puerta se
+   abre se cierra en el servidor, no con un parche por test.
+
+Dónde está medido qué: [ACCURACY.md](ACCURACY.md) tiene los números,
+[DECISIONES.md](DECISIONES.md) el porqué de cada uno.
+
 ## Gotchas
 
 - **La marea se muestra SIEMPRE como "estimada"** (viene de CMEMS, no de una tabla oficial). No quitar esa etiqueta ni presentarla como dato oficial: es una decisión de producto, no un detalle de UI.
+- **La ola no tiene fuente de verdad.** No hay boya con oleaje en el Pacífico panameño ni altimetría abierta; lo verificado es que los 4 modelos discrepan 0.30 m de media. No escribir "MAE de la ola" citando el backtest: ese número compara el modelo consigo mismo.
+- **Los pasos entre islas no los ve ningún modelo** (celda ~11 km, canal 2 km). `src/config/pasos.ts` lleva geometría y NADA de velocidad, con un test que lo hace cumplir.
+- **El sol sale de la radiación, no de la nubosidad** (2.3× mejor a 7 días). Si alguien quita `shortwave_radiation`/`terrestrial_radiation` de la URL, el score pierde su segundo término.
 - npm correcto: `~/.local/node-v20.19.2-darwin-arm64/bin`.

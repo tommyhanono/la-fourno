@@ -24,6 +24,11 @@ Condiciones + recomendador. Nada más, a propósito.
   hay, **el mejor destino según el clima de ese día**, y si conviene
   temprano o por la tarde (en palabras, no en puntaje). Si todos los
   puntos quedan iguales, lo dice en vez de inventar un ganador.
+- **Dice la probabilidad, no solo el puntaje.** "73 % de que salga
+  excelente", contado sobre los días históricos con puntaje parecido a
+  esa misma distancia — no estimado a ojo. El diagrama de confiabilidad
+  se corre con `npm run backtest`: el desvío es de ~4 puntos a 1, 4 y
+  7 días (n=364 por horizonte, medido el 1-sep-2026).
 - **Dice cuándo NO confiar en el número.** Si los tres modelos globales
   se contradicen lo suficiente como para cambiar la respuesta, lo avisa.
   Y del día 6 en adelante avisa que el pronóstico ya no le gana al
@@ -34,6 +39,11 @@ Condiciones + recomendador. Nada más, a propósito.
 - **9 puntos precargados**: Marina Ocean Reef, Contadora, Chapera,
   Islas Ocean Reef, Pearl Island, Mogo Mogo, Caracoles + las playas
   Santa Clara (Las Sirenas) y Coronado con su "score de día de playa".
+- **Declara lo que no sabe, donde lo muestra.** La ola no tiene con qué
+  verificarse (no hay boyas con oleaje en el Pacífico panameño) y lo
+  dice en la misma pantalla, con la discrepancia medida entre modelos.
+  Los pasos entre islas no los resuelve ningún modelo, así que la app
+  dice *cuándo* corre la marea fuerte y **nunca cuánto**.
 - **Por punto**: condiciones de ahora (viento, cielo, ola, marea con
   tendencia, temperatura, UV), curva de marea del día con pleamares y
   bajamares, amanecer/atardecer, timeline horaria deslizable y resumen
@@ -46,11 +56,19 @@ Condiciones + recomendador. Nada más, a propósito.
 | Dato | Fuente |
 |---|---|
 | Viento, ráfagas, nubes, lluvia, UV, CAPE, amanecer/atardecer | [Open-Meteo Forecast](https://open-meteo.com) |
-| Oleaje (altura, período, dirección) | [Open-Meteo Marine](https://open-meteo.com) |
+| Oleaje (altura, período, dirección) | [Open-Meteo Marine](https://open-meteo.com) — **sin verdad independiente**, ver abajo |
+| Radiación (el insumo del sol) | [Open-Meteo Forecast](https://open-meteo.com) `shortwave_radiation` |
 | **Marea** | Open-Meteo Marine `sea_level_height_msl` (modelo Copernicus/CMEMS) |
 
 **La marea es SIEMPRE un estimado** y el UI lo dice: el nivel sale de un
 modelo, no de un mareógrafo.
+
+**La ola tampoco tiene verdad**, y ese es un hueco distinto: la marea al
+menos se pudo contrastar contra NOAA. Para el oleaje no hay boya con
+dato en el Pacífico panameño ni altimetría abierta, así que lo único que
+se pudo medir es cuánto discrepan los modelos entre sí: **0.30 m de
+media, hasta 1.06 m** (4 modelos, 90 días, 1-sep-2026) sobre olas que
+promedian medio metro. La app lo declara donde muestra la ola.
 
 *(Corrección del 1-sep-2026: acá decía que NOAA ya no publicaba Balboa.
 Sí la publica — estación **9812501**, predicciones armónicas en datum
@@ -149,6 +167,21 @@ node scripts/medir-estaciones.mjs
 # ¿La marea llega a tiempo? (contra NOAA, varias estaciones)
 node scripts/medir-marea.mjs
 
+# ¿Cuánto se equivoca el score, por horizonte? Regenera la banda de
+# incertidumbre Y la curva de probabilidad que usa la app.
+npm run backtest
+
+# ¿Acertó el score contra lo que él vivió? (`--simular N` lo prueba sin
+# datos reales, y avisa en la salida que son de mentira.)
+npm run analizar-verdad
+
+# ¿Cómo se porta la app con una barra de señal? Necesita el preview
+# levantado en :4330.
+npm run medir-red
+
+# Las tablas de Supabase, ¿están cerradas de verdad? Lista, nunca borra.
+npm run auditar-datos
+
 # Auditoría de layout: solapamientos, desbordes y scroll horizontal en
 # 6 escenarios (320 px, 375 px, desgloses abiertos, texto 130 % y 200 %,
 # landscape). Necesita el preview levantado en ese puerto.
@@ -156,9 +189,10 @@ BASE=http://localhost:4173 node scripts/audita-layout.mjs
 
 # Contraste WCAG AA de cada texto en las 4 vistas (lo que Lighthouse
 # no ve, porque solo audita una URL y lo visible).
-BASE=http://localhost:4173 node scripts/audita-contraste.mjs
+BASE=http://localhost:4339 node scripts/audita-contraste.mjs
 ```
 
+Cuánto se equivoca la app y cómo se midió: [ACCURACY.md](ACCURACY.md).
 Auditoría completa y resultados: [MEGA-RONDA.md](MEGA-RONDA.md).
 Decisiones y supuestos: [DECISIONES.md](DECISIONES.md).
 

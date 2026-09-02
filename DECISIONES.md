@@ -560,3 +560,136 @@ reemplazó por una tabla de config cerrada con negación explícita.
 
 El token viaja en el bundle: no es un secreto, es una molestia para el
 que pase. Si aparece basura, se rota en `fourno_config` y en Vercel.
+
+---
+
+## 15. Del puntaje a la probabilidad (2026-09-01, ronda 11)
+
+Un puntaje de 78 no le dice a nadie si sale o no. Una probabilidad sí,
+**siempre que esté calibrada**. Toda esta ronda es eso: convertir el
+score en un número que signifique lo que dice, y cerrar los dos huecos
+de datos que quedaban declarados de la ronda anterior.
+
+### 15.1 El ensemble no sirvió, y se dice
+
+La idea obvia era sacar la probabilidad de la dispersión del ensemble
+—51 miembros de ICON, la incertidumbre que el propio modelo declara—.
+**No se puede.** La `ensemble-api` de Open-Meteo solo guarda ~4 días de
+pasado: 101 horas contiguas, del 28-ago al 1-sep-2026. Sin histórico no
+hay contra qué calibrar, y una probabilidad sin calibrar es exactamente
+el número que parece preciso sin serlo.
+
+Así que la probabilidad sale del backtest: 364 pares (pronosticado,
+resultó) por horizonte, que sí existen porque `previous-runs-api` guarda
+92 días.
+
+### 15.2 La primera versión estaba mal, y el diagrama la tumbó
+
+Versión 1: tomar la distribución de error MARGINAL del backtest y
+preguntarle qué fracción de las veces el score real superaría 75.
+Suena bien. El diagrama de confiabilidad —que es el test, no un
+adorno— dijo que a 4 días el tramo alto prometía **89 %** y cumplía
+**45 %**. Un desvío de 43.5 puntos.
+
+El error del pronóstico **no es independiente del pronóstico**: los
+puntajes altos regresan a la media más de lo que la distribución
+marginal sugiere. La versión 2 condiciona: P(Excelente | score, lead)
+contada sobre los vecinos históricos con puntaje parecido (±6, mínimo
+25 vecinos, y si no alcanzan **se ensancha la ventana en vez de
+inventar**). Error de calibración 6.1/9.0/9.1 → **4.0/4.2/4.0** pts.
+
+El umbral "Excelente ≥75" no es una preferencia: con "Bueno ≥55" el
+95 % de los días clasifica, y una probabilidad que dice 95 % siempre no
+informa nada. Con 75, la tasa base es 46 %.
+
+### 15.3 El sol se mide con radiación
+
+`cloud_cover` tenía 19-26 % de MAE y pesaba casi tanto como el viento.
+Se midió cuál de los seis candidatos predice mejor las horas de sol
+reales (correlación de rangos, 90 días):
+
+| | −1d | −3d | −7d |
+|---|---|---|---|
+| nubosidad | 0.555 | 0.349 | 0.100 |
+| **radiación** | **0.689** | **0.491** | **0.231** |
+
+A 7 días la radiación es 2.3× mejor. El insumo pasó a ser el **índice de
+cielo despejado** (`shortwave_radiation / terrestrial_radiation`), que
+es adimensional y no depende de la hora ni de la estación. Error del
+score: 5.3/7.1/8.8 → **4.8/6.3/7.3**.
+
+La curva nueva se eligió **para no mover la escala** (+2.1 pts de media
+contra +9.2 de una curva "físicamente correcta"), y eso no cuesta
+exactitud: la correlación de rangos es invariante a transformaciones
+monótonas, así que cualquier curva creciente conserva la mejora del
+predictor. La escala del score sí importa —hay umbrales calibrados con
+él— y moverla habría invalidado la calibración de la 15.2.
+
+### 15.4 La ola no tiene verdad, y ahora se sabe cuánto duele
+
+Se buscó fuente independiente y **no existe**: cero boyas con oleaje en
+el Pacífico panameño (NDBC tiene 3 en la región, todas en el Caribe y
+sin dato de ola) y ninguna altimetría satelital abierta en ERDDAP.
+
+Lo que sí se pudo medir: los cuatro modelos globales discrepan **0.30 m
+de media** entre sí (p90 0.52, máximo 1.06) sobre olas que promedian
+medio metro. El backtest reportaba 0.02 m a 1 día — porque comparaba el
+modelo consigo mismo. **La incertidumbre real es ~15× la que decía la
+ronda 10**, y eso corrige aquel número.
+
+`best_match` sigue a **gwam** (|dif| 0.088 m), que es el atípico alto:
+lee ~2× los otros tres. **No se cambió**, y es medido: la mediana de los
+cuatro mueve el score **0.83 pts de 100**, muy por debajo del ruido
+(MAE 4.8), y costaría una request más en un dato que ya pesa 15 %.
+Cambiar la fuente por un efecto menor que el ruido es moverse sin
+mejorar.
+
+Se declara **en el UI, donde se muestra la ola**, no solo acá. Con un
+E2E que falla si la nota desaparece: la primera vez el CSS quedó y el
+JSX nunca llegó, y nada se enteró.
+
+### 15.5 Los pasos entre islas: geometría sí, velocidad no
+
+Verificado el 1-sep: cuatro puntos que abarcan 3.5 km a través del paso
+Contadora–Chapera caen **todos en la misma celda** (8.625, −79.0416) y
+devuelven idéntica corriente, con `best_match` y con
+`meteofrance_currents`. A ~11 km de celda, un canal de 2 km no existe
+para el modelo. No hay modelo de mayor resolución disponible.
+
+Entonces no se inventan velocidades. Lo único honesto que la app puede
+decir de los pasos —y lo dice— es **en qué horas la marea corre más
+fuerte**, que sale de la curva validada a ±4 min por ciclo: el flujo es
+proporcional a la velocidad de cambio del nivel, así que corre a media
+marea, no en pleamar. La geometría vive en `src/config/pasos.ts` como
+conocimiento local declarado, con un test que falla si alguien le
+agrega un campo de velocidad.
+
+### 15.6 El análisis de la verdad de campo existe ANTES que los datos
+
+`npm run analizar-verdad`. Se probó con `--simular`, que avisa en su
+propia salida que los datos son de mentira. La alternativa —escribirlo
+el día que llegue el primer registro— es como se pierden los datos:
+llegan, no hay con qué mirarlos, y para cuando hay herramienta ya nadie
+se acuerda del contexto.
+
+### 15.7 La app en red lenta
+
+Nunca se había medido. Con caché, el primer dato aparece en **170 ms**.
+El hallazgo: con un timeout único de 20 s, **cualquier** request colgada
+dejaba la app 19.5 s en el esqueleto aunque el clima ya hubiera llegado
+en 1 s, porque `Promise.allSettled` espera a todas. Ahora el timeout va
+por criticidad —clima 20 s, mar 10 s, multimodelo 7 s— y el peor caso de
+una request no esencial bajó a 7-10 s. Reproducible con
+`npm run medir-red`.
+
+### 15.8 Lo que NO se cambió, con números
+
+- **Viento máximo (playa) vs típico (navegación)**: separa 2.18 pts y
+  en 0 de 12 semanas cambia el día elegido. Se mantiene por claridad
+  conceptual, no por efecto.
+- **Fuente de oleaje**: la mediana de 4 modelos mueve 0.83 pts (ver
+  15.4). Debajo del ruido.
+- **Sesgo de viento contra ERA5**: no se corrige. La app puntúa la
+  jornada, y una corrección global movería umbrales calibrados contra
+  el criterio de Tommy, no contra ERA5.
+- **Etiqueta "estimada" de la marea**: permanente, con test.
