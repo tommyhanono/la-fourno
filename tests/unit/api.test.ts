@@ -37,6 +37,20 @@ describe('las URLs piden exactamente lo que la app asume', () => {
     }
   })
 
+  it('pide la radiación, que es el insumo del sol', () => {
+    // Desde el 1-sep-2026 el término de sol sale del índice de
+    // radiación, no de la nubosidad: predice las horas de sol reales
+    // 2.3 veces mejor a 7 días. Sin estas dos variables el score se
+    // queda sin su segundo término.
+    expect(urlForecast()).toContain('shortwave_radiation')
+    expect(urlForecast()).toContain('terrestrial_radiation')
+  })
+
+  it('pide la corriente, para el aviso de viento en contra', () => {
+    expect(urlMarine()).toContain('ocean_current_velocity')
+    expect(urlMarine()).toContain('ocean_current_direction')
+  })
+
   it('no se piden wind_wave ni swell: se evaluaron y no aportan', () => {
     // Ver la nota larga en score.ts ('mar-corto'). wave_period ya es
     // media ponderada por energía. Pedirlos sería payload muerto.

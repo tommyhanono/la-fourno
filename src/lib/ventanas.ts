@@ -19,7 +19,13 @@ import {
   type EntradaBloque,
   type ResultadoScore,
 } from './score'
-import { serieMarea, nivelRelativo, tendenciaEn, type SerieMarea } from './tide'
+import {
+  serieMarea,
+  nivelRelativo,
+  tendenciaEn,
+  tramosDeCorriente,
+  type SerieMarea,
+} from './tide'
 import { parsePanama, claveDia, ahoraPanama, medianocheHoyPanama } from './time'
 import { ventanasEnContra, type VentanaContra } from './corriente'
 
@@ -139,6 +145,13 @@ export interface DiaJornada {
    * alcance real (cubre mar abierto, no los pasos entre islas).
    */
   contraCorriente: VentanaContra[]
+  /**
+   * Tramos de la jornada en que la marea corre más fuerte (media marea,
+   * no pleamar). Importa por los PASOS entre islas, que el modelo no
+   * resuelve: ahí ese flujo se multiplica. No lleva velocidad porque no
+   * la hay — ver src/config/pasos.ts.
+   */
+  mareaCorriendo: { desde: Date; hasta: Date }[]
   /** Amanece / se pone, del día. */
   sol: { sale: Date; sePone: Date } | null
 }
@@ -458,6 +471,10 @@ export function jornadasSemana(datos: DatosApp): DiaJornada[] {
       fueraDeSkill: anticipacion > horizonteDeSkill(base),
       // Se mira el corredor entero: salida y destino. Si en cualquiera
       // de los dos el viento va contra la corriente, el cruce lo cruza.
+      mareaCorriendo: (() => {
+        const ser = mareas.get(mejor.punto.id)
+        return ser ? tramosDeCorriente(ser, inicio, fin) : []
+      })(),
       contraCorriente: [
         ...ventanasEnContra(f0, datos.marine[idx(PUNTO_SALIDA.id)], inicio, horas),
         ...ventanasEnContra(

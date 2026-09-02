@@ -12,7 +12,9 @@
     "test": "vitest run tests/unit",
     "test:e2e": "playwright test",
     "backtest": "node scripts/backtest.mjs",
-    "auditar-datos": "node scripts/auditar-datos.mjs"
+    "auditar-datos": "node scripts/auditar-datos.mjs",
+    "analizar-verdad": "node scripts/analizar-verdad.mjs",
+    "medir-red": "node scripts/medir-red-lenta.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

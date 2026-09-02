@@ -12,9 +12,11 @@
 //     scatterómetro sobre mar—, no una boya. En el Golfo de Panamá no
 //     hay boya gratis; esto es lo mejor disponible.
 //   · Mar (altura y período): el análisis del propio modelo de oleaje.
-//     Eso SÍ es modelo contra modelo y hay que leerlo como tal: mide
-//     consistencia, no exactitud contra el mar real. Va marcado en la
-//     tabla.
+//     Eso SÍ es modelo contra modelo y hay que leerlo como tal. El MAE
+//     que sale acá (0.02-0.12 m) SUBESTIMA la incertidumbre real por
+//     un factor de ~15: los cuatro modelos globales discrepan 0.30 m de
+//     media entre sí. No hay boya ni altimetría abierta en el Pacífico
+//     panameño con qué dirimirlo — verificado, no supuesto.
 //
 // El error en puntos NO se propaga analíticamente: se calcula el score
 // con los valores pronosticados y con los que resultaron, y se mide la
@@ -396,7 +398,7 @@ async function main() {
     _que: 'Error del pronóstico por horizonte, medido contra lo que después resultó. Lo genera `npm run backtest`. La app lee bandaPts para mostrar la incertidumbre real en vez de una constante inventada.',
     _verdad: {
       atmosfera: 'ERA5 (archive-api). Reanálisis que asimila observaciones; no es una boya.',
-      mar: 'Análisis del propio modelo de oleaje: MODELO CONTRA MODELO. Mide consistencia, no exactitud contra el mar real. No hay boya gratis en el Golfo.',
+      mar: 'Análisis del propio modelo de oleaje: MODELO CONTRA MODELO. Mide consistencia, NO exactitud. El MAE de 0.02-0.12 m que sale abajo subestima muchísimo la incertidumbre real: medido el 1-sep-2026, los cuatro modelos globales de oleaje (gwam, ecmwf_wam, ncep_gfswave025/016) discrepan 0.30 m de media entre sí (p90 0.52, máximo 1.06) sobre olas que promedian medio metro. Y el que usa la app (best_match) sigue a gwam, que lee ~2x más alto que los otros tres. Verificado que NO hay con qué dirimirlo: cero boyas con oleaje en el Pacífico panameño (NDBC solo tiene 3 en la región, todas en el Caribe y sin dato) y ninguna altimetría satelital de altura de ola abierta en ERDDAP.',
     },
     _generado: new Date().toISOString().slice(0, 10),
     _ventanaDias: dias,

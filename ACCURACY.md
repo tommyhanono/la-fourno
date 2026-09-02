@@ -145,6 +145,130 @@ Subir el peso del viento no arreglaría nada; solo movería el número.
 
 ---
 
+## Ronda 11 — probabilidad calibrada, y el sol medido bien
+
+### La app dice probabilidad, no solo puntaje
+
+**"78 % de que salga excelente"**, calibrado. El umbral sale de los
+datos: "Bueno" (≥55) lo cumple el 95 % de los días —una probabilidad con
+ese corte diría 95 % siempre—, "Excelente" (≥75) lo cumple el 46 %.
+
+**El ensemble NO sirvió, y está verificado.** La API solo guarda ~4 días
+de pasado (101 horas contiguas del 28-ago al 1-sep), así que no hay
+histórico contra el cual calibrar. Sacar la probabilidad de la
+dispersión habría sido justo el número que parece preciso y no lo es.
+Sale del backtest: 364 pares (pronosticado, resultó) por horizonte.
+
+**La primera versión estaba mal y el diagrama de confiabilidad la
+tumbó.** Usaba la distribución de error MARGINAL:
+
+| horizonte | decía | pasaba | desvío |
+|---|---|---|---|
+| 4 días, tramo alto | 89 % | 45 % | **43.5 pts** |
+
+El error no es independiente del pronóstico —los puntajes altos regresan
+a la media—, así que la probabilidad quedó **condicionada al puntaje**.
+Error de calibración: **6.1 / 9.0 / 9.1 → 4.0 / 4.2 / 4.0** pts a 1, 4 y
+7 días.
+
+---
+
+### El sol se mide con radiación, no con nubosidad
+
+Correlación de rangos contra las horas de sol reales, 90 días:
+
+| candidato | −1d | −3d | −7d |
+|---|---|---|---|
+| nubosidad | 0.555 | 0.349 | 0.100 |
+| **radiación** | **0.689** | **0.491** | **0.231** |
+| horas de sol | 0.620 | 0.426 | 0.191 |
+
+A 7 días la radiación es **2.3 veces mejor**. En el trópico la nubosidad
+lee alto (cirros, cúmulos sueltos) y aun así pasa mucha luz.
+
+Efecto en el error del score: **−1d 5.3 → 4.8 · −3d 7.1 → 6.3 · −7d
+8.8 → 7.3** (−17 %). El p90 a 7 días, 19.6 → 15.6.
+
+La curva se eligió para **no mover la escala** (+2.1 pts de media en vez
+de +9.2 de una curva "física") y no se pierde exactitud: la correlación
+de rangos es invariante a transformaciones monótonas, así que la mejora
+del predictor se conserva con cualquier curva creciente.
+
+De paso, la etiqueta del cielo pasó a salir del mismo índice: con la
+nubosidad, el **11.4 %** de los días decían "nublado" mientras el sol
+puntuaba 0.78 o más.
+
+---
+
+### La ola: no hay verdad, y ahora se sabe cuánta incertidumbre hay
+
+**Verificado que no existe fuente independiente**: cero boyas con
+oleaje en el Pacífico panameño (NDBC tiene 3 en la región, todas en el
+Caribe y sin dato) y ninguna altimetría satelital de altura de ola
+abierta en ERDDAP.
+
+Lo que sí se pudo medir: **los cuatro modelos globales discrepan entre
+sí**, y mucho.
+
+| modelo | ola media (jornada, 90 días) |
+|---|---|
+| gwam | **0.49 m** |
+| ecmwf_wam | 0.32 |
+| ncep_gfswave025 | 0.29 |
+| ncep_gfswave016 | 0.27 |
+
+Dispersión entre ellos: **media 0.30 m, p90 0.52, máximo 1.06**. El
+backtest reportaba MAE de 0.02 m a 1 día — porque compara el modelo
+consigo mismo. **La incertidumbre real es ~15 veces mayor**, y eso
+corrige el número de la ronda 10.
+
+Y el que usa la app (`best_match`) sigue a **gwam** (|dif| 0.088 m), que
+es el atípico alto: reporta olas ~2× más altas que los otros tres.
+**NO se cambió la fuente**, y es una decisión medida: usar la mediana de
+los cuatro mueve el score **0.83 pts de 100**, por debajo del ruido
+(MAE 4.8), y costaría una request más. Declarado en el UI donde se
+muestra la ola.
+
+---
+
+### Los pasos entre islas: invisibles para todos los modelos
+
+**Verificado**: cuatro puntos que abarcan 3.5 km a través del paso
+Contadora–Chapera caen todos en la **misma celda** (8.625, −79.0416) y
+devuelven la misma corriente. Probado con `best_match` y
+`meteofrance_currents`; dan idéntico. A ~11 km de celda, un canal de 2 km
+no existe.
+
+Así que **no se inventan velocidades**. Lo que la app sí dice, porque
+sale de la curva de marea validada a ±4 min: **en qué horas la marea
+corre más fuerte** (a media marea, no en pleamar — el flujo es
+proporcional a la velocidad de cambio del nivel). La geometría de los
+pasos vive en `src/config/pasos.ts`, declarada como conocimiento local,
+con un test que falla si alguien le agrega una velocidad.
+
+---
+
+### La app en red lenta
+
+| escenario | texto útil | primer dato |
+|---|---|---|
+| red normal, en frío | 137 ms | 1446 ms |
+| red lenta (2 s/request) | 81 ms | 2915 ms |
+| **red lenta CON caché** | 159 ms | **170 ms** |
+| se cuelga el clima (esencial) | 86 ms | 19.5 s |
+| se cuelga el mar | 76 ms | 10.4 s |
+| se cuelga el multimodelo | 77 ms | 7.4 s |
+
+**Problema encontrado y arreglado**: con un timeout único de 20 s,
+cualquier request colgada dejaba la app 19.5 s en el esqueleto aunque el
+clima ya hubiera llegado en 1 s — `Promise.allSettled` espera a todas.
+Ahora el timeout va por criticidad: clima 20 s, mar 10 s, multimodelo
+7 s. El peor caso de una request no esencial bajó de 19.5 a 7-10 s.
+
+Bundle: 262 kB (83 kB gzip). Se reproduce con `npm run medir-red`.
+
+---
+
 ## Frentes abiertos, por prioridad
 
 ### P1 — Verdad de campo: la tubería ya está, faltan los datos
@@ -644,7 +768,7 @@ antes.
 ```
 npm run typecheck     # incluye los tests (tsc solo miraba src hasta ago-2026)
 npm run lint
-npm test              # 182 unit
+npm test              # 205 unit
 npm run test:e2e      # 21 E2E
 node scripts/audita-layout.mjs      # requiere preview en :4330
 node scripts/audita-contraste.mjs   # requiere preview en :4339

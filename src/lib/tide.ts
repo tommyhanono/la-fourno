@@ -27,6 +27,7 @@
 import type { ExtremoMarea } from './types'
 import { parsePanama } from './time'
 import { CALIBRACION } from '../config/calibracion'
+import { CORRE_FUERTE_FRAC } from '../config/pasos'
 
 export interface SerieMarea {
   times: Date[]
@@ -132,4 +133,69 @@ export function nivelRelativo(s: SerieMarea, t: Date): number | null {
   const max = Math.max(...enRango)
   if (max - min < 0.3) return 0.5 // rango raro/plano: neutro
   return (nivel - min) / (max - min)
+}
+
+/**
+ * Horas en que la marea corre MÁS FUERTE dentro de una franja.
+ *
+ * El flujo que atraviesa un canal es proporcional a qué tan rápido sube
+ * o baja el nivel, no a qué tan alto está: corre más a media marea que
+ * en pleamar. Esto devuelve los tramos donde esa velocidad de cambio
+ * pasa de `CORRE_FUERTE_FRAC` del máximo del día.
+ *
+ * Sirve para lo único honesto que la app puede decir de los pasos entre
+ * islas: CUÁNDO va a estar corriendo. La velocidad de la corriente ahí
+ * no la sabe nadie —el modelo no resuelve los canales— así que no se
+ * inventa. Ver src/config/pasos.ts.
+ */
+export function tramosDeCorriente(
+  s: SerieMarea,
+  desde: Date,
+  hasta: Date,
+): { desde: Date; hasta: Date }[] {
+  // Velocidad de cambio por hora, en el día entero, para saber cuál es
+  // el máximo con el que comparar.
+  const tasas: { t: Date; v: number }[] = []
+  for (let i = 1; i < s.times.length; i++) {
+    const a = s.niveles[i - 1]
+    const b = s.niveles[i]
+    if (a == null || b == null) continue
+    const horas = (s.times[i].getTime() - s.times[i - 1].getTime()) / 3600_000
+    if (horas <= 0) continue
+    tasas.push({ t: s.times[i], v: Math.abs(b - a) / horas })
+  }
+  if (tasas.length === 0) return []
+  const enDia = tasas.filter(
+    (x) =>
+      x.t.getTime() >= desde.getTime() - 12 * 3600_000 &&
+      x.t.getTime() <= hasta.getTime() + 12 * 3600_000,
+  )
+  if (enDia.length === 0) return []
+  const maximo = Math.max(...enDia.map((x) => x.v))
+  if (maximo <= 0) return []
+
+  const fuertes = tasas.filter(
+    (x) =>
+      x.t >= desde &&
+      x.t <= hasta &&
+      x.v >= CORRE_FUERTE_FRAC * maximo,
+  )
+  // Agrupar horas contiguas.
+  const out: { desde: Date; hasta: Date }[] = []
+  let ini = 0
+  for (let k = 1; k <= fuertes.length; k++) {
+    const corta =
+      k === fuertes.length ||
+      fuertes[k].t.getTime() - fuertes[k - 1].t.getTime() > 3600_000
+    if (!corta) continue
+    const tramo = fuertes.slice(ini, k)
+    if (tramo.length >= 2) {
+      out.push({
+        desde: new Date(tramo[0].t.getTime() - 3600_000),
+        hasta: tramo[tramo.length - 1].t,
+      })
+    }
+    ini = k
+  }
+  return out
 }

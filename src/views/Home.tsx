@@ -297,6 +297,20 @@ function TarjetaDia({
         )
       })()}
 
+      {d.mareaCorriendo.length > 0 && (
+        <p className="dia-pasos">
+          {/* Lo único honesto que se puede decir de los pasos: CUÁNDO va
+              a estar corriendo. La velocidad ahí no la sabe nadie — el
+              modelo tiene celdas de 11 km y un paso mide 2. */}
+          Marea corriendo fuerte{' '}
+          {d.mareaCorriendo
+            .map((v) => `de ${horaMuyCorta(v.desde)} a ${horaMuyCorta(v.hasta)}`)
+            .join(' y ')}
+          . En los pasos entre islas eso se siente mucho más que en mar
+          abierto, y el modelo no los ve.
+        </p>
+      )}
+
       {d.contraCorriente.length > 0 && (
         <p className="dia-contracorriente">
           <strong>Viento contra corriente</strong>{' '}

@@ -119,8 +119,27 @@ export function urlModelos(): string {
   )
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { signal: AbortSignal.timeout(20_000) })
+/**
+ * Timeouts POR CRITICIDAD, no uno solo para todo.
+ *
+ * Medido el 1-sep-2026 con una request colgada a propósito: con 20 s
+ * para las tres, la app se quedaba 19.5 s mostrando el esqueleto aunque
+ * el clima ya hubiera llegado en 1 s. `Promise.allSettled` espera a
+ * todas, así que la más lenta manda.
+ *
+ * Ahora cada una espera lo que se justifica:
+ *  · clima: es la columna vertebral, sin él no hay app. 20 s.
+ *  · mar: degrada el score 25 puntos pero la app sirve igual (el guard
+ *    de datos parciales lo declara). 10 s.
+ *  · multimodelo: es un extra para medir incertidumbre. 7 s.
+ *
+ * Peor caso al arrancar en frío: 20 s solo si lo que se cuelga es el
+ * clima. Si se cuelga cualquier otra, 10 s en vez de 20.
+ */
+const TIMEOUTS = { clima: 20_000, mar: 10_000, modelos: 7_000 } as const
+
+async function fetchJson<T>(url: string, timeoutMs: number): Promise<T> {
+  const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json() as Promise<T>
 }
@@ -139,9 +158,9 @@ export async function bajarDatos(): Promise<DatosApp> {
   const fallas: string[] = []
 
   const [rf, rm, rx] = await Promise.allSettled([
-    fetchJson<PuntoForecast | PuntoForecast[]>(urlForecast()),
-    fetchJson<PuntoMarine | PuntoMarine[]>(urlMarine()),
-    fetchJson<PuntoModelos | PuntoModelos[]>(urlModelos()),
+    fetchJson<PuntoForecast | PuntoForecast[]>(urlForecast(), TIMEOUTS.clima),
+    fetchJson<PuntoMarine | PuntoMarine[]>(urlMarine(), TIMEOUTS.mar),
+    fetchJson<PuntoModelos | PuntoModelos[]>(urlModelos(), TIMEOUTS.modelos),
   ])
 
   const forecast = rf.status === 'fulfilled' ? asArray(rf.value) : null
