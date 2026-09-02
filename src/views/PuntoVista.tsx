@@ -175,6 +175,16 @@ function VistaNav({
           />
           <SolHoy f={f} />
         </div>
+        {/* F3: la ola es el único dato de la app sin ninguna verdad
+            contra la cual medirse. Se declara acá, donde se muestra. */}
+        <p className="nota-ola">
+          <strong>La ola es lo menos confiable de esta pantalla.</strong> No
+          hay boyas con oleaje en el Pacífico panameño, así que no existe
+          contra qué verificarla. Medido el 1-sep-2026 sobre 90 días, los
+          cuatro modelos globales discrepan <strong>0.30 m</strong> entre sí
+          de media (hasta 1.06 m) sobre olas que promedian medio metro, y el
+          que ves acá lee del lado alto. Tómala como orden de magnitud.
+        </p>
       </section>
 
       {marea && (

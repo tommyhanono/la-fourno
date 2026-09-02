@@ -59,6 +59,11 @@ for (const ruta of RUTAS) {
       if (!txt) continue
       const cs = getComputedStyle(el)
       if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.9) continue
+      // Lo que está oculto para el lector de pantalla no es texto que
+      // alguien tenga que leer: son los guiones del esqueleto de carga,
+      // decorativos y tenues a propósito. Medirles el contraste hacía
+      // que el auditor fallara o no según cuánto tardara la red.
+      if (el.closest('[aria-hidden="true"], [aria-hidden=""]')) continue
       const r = el.getBoundingClientRect()
       if (r.width === 0 || r.height === 0) continue
       const fg = parse(cs.color)

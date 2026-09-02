@@ -337,6 +337,22 @@ test.describe('La Fourno', () => {
     }
   })
 
+  // Las tres declaraciones de honestidad viven en el UI, no solo en los
+  // documentos: si alguien las borra al reacomodar una pantalla, nadie se
+  // entera. Este test es el que se entera. (La de la ola se perdió una vez
+  // exactamente así: el CSS quedó y el JSX no llegó nunca.)
+  test('las declaraciones de incertidumbre siguen en pantalla', async ({ page }) => {
+    await mockApis(page)
+    await page.goto('/#/punto/contadora')
+    const ola = page.locator('.nota-ola')
+    await expect(ola).toBeVisible({ timeout: 15_000 })
+    // Que exista no basta: tiene que traer el número medido y su fecha.
+    await expect(ola).toContainText('0.30 m')
+    await expect(ola).toContainText('1-sep-2026')
+    // Y la marea sigue siendo "estimada", que es decisión de producto.
+    await expect(page.getByText(/Marea \(estimada\)/i).first()).toBeVisible()
+  })
+
   test('la curva de marea no encima sus etiquetas con el eje', async ({ page }) => {
     await mockApis(page)
     await page.goto('/#/punto/contadora')
