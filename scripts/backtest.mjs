@@ -54,10 +54,21 @@ const HORA_HASTA = 16
 // ---------------------------------------------------------------
 export const CURVAS = {
   viento: [[0, 1.0], [5, 1.0], [8, 0.9], [12, 0.65], [15, 0.4], [18, 0.18], [22, 0.05], [25, 0]],
-  sol: [[0, 1.0], [25, 1.0], [50, 0.75], [75, 0.45], [100, 0.2]],
+  // Índice de sol (radiación / máximo teórico). Es el insumo principal
+  // del término de sol desde el 1-sep-2026; la curva por nubosidad
+  // quedó de respaldo y NO se usa acá, porque el backtest tiene que
+  // medir el score que la app calcula de verdad.
+  sol: [[0.15, 0.2], [0.4, 0.25], [0.55, 0.32], [0.65, 0.75], [0.7, 1.0]],
   ola: [[0, 1.0], [0.5, 1.0], [0.9, 0.7], [1.3, 0.35], [1.8, 0.1], [2.5, 0]],
 }
 export const PESOS = { viento: 45, sol: 30, ola: 15, marea: 10 }
+/** Términos de marea, copiados de calibracion.ts (ver test de deriva). */
+export const MAREA = {
+  bajaExtremaFrac: 0.15,
+  bajaExtremaPenal: 6,
+  vaciandoPenal: 3,
+  llenandoBono: 2,
+}
 export const RACHA = { deltaKt: 7, penal: 8 }
 export const PESO_PICO = 0.5
 
@@ -75,12 +86,33 @@ export function interp(curva, x) {
 }
 
 /**
- * Score parcial: viento + racha + sol + ola. Deja fuera la marea (10
- * pts), que no depende del pronóstico atmosférico sino de un modelo
- * astronómico, y los castigos de seguridad, que son rayas duras y no
- * se prestan a "error medio". Cubre 90 de los 100 puntos.
+ * Puntos del término de marea, con la misma lógica de cajones que
+ * `scoreBloque`. La marea entra al score COMPLETO porque el umbral de
+ * la probabilidad se ata a las etiquetas que la app ya usa
+ * (Excelente ≥75 de 100), y sin marea el máximo sería 90 y el umbral
+ * dejaría de significar lo mismo.
+ *
+ * Se trata como CONOCIDA, y no es un supuesto: medido el 1-sep-2026,
+ * el error del pronóstico de nivel del mar es de 0.6 cm a 1 día y
+ * 1.5 cm a 7, sobre un rango de marea de 4.5 m. Despreciable frente al
+ * error de viento y nubes, que es lo que esto mide.
+ */
+export function puntosMarea(rel, tendencia) {
+  if (rel == null) return 0
+  if (rel < MAREA.bajaExtremaFrac) return PESOS.marea * 0.3 - MAREA.bajaExtremaPenal
+  if (tendencia === 'vaciando') return PESOS.marea * 0.6 - MAREA.vaciandoPenal
+  return PESOS.marea * 0.8 + (tendencia === 'llenando' ? MAREA.llenandoBono : 0)
+}
+
+/**
+ * Score parcial: viento + racha + sol + ola. Deja fuera la marea y los
+ * castigos de seguridad, que son rayas duras y no se prestan a "error
+ * medio". Cubre 90 de los 100 puntos.
  */
 export function scoreParcial({ viento, racha, nubes, ola }) {
+  // `nubes` acá es el ÍNDICE DE SOL (0..1), no el porcentaje de nubes.
+  // Se mantiene el nombre del campo por compatibilidad con los tests
+  // de deriva; lo que importa es que la curva y el insumo coincidan.
   let s = 0
   if (viento != null) {
     s += PESOS.viento * interp(CURVAS.viento, viento)
@@ -126,8 +158,9 @@ async function main() {
     await traer(
       `atm-${dias}`,
       `https://previous-runs-api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
-        `&hourly=wind_speed_10m,wind_gusts_10m,cloud_cover,` +
-        `${varsPrev('wind_speed_10m')},${varsPrev('wind_gusts_10m')},${varsPrev('cloud_cover')}` +
+        `&hourly=wind_speed_10m,wind_gusts_10m,shortwave_radiation,terrestrial_radiation,` +
+        `${varsPrev('wind_speed_10m')},${varsPrev('wind_gusts_10m')},` +
+        `${varsPrev('shortwave_radiation')},${varsPrev('terrestrial_radiation')}` +
         `&past_days=${dias}&forecast_days=1&timezone=${TZ}&wind_speed_unit=kn&cell_selection=sea`,
     ),
   )
@@ -136,7 +169,8 @@ async function main() {
     await traer(
       `mar-${dias}`,
       `https://marine-api.open-meteo.com/v1/marine?latitude=${lats}&longitude=${lons}` +
-        `&hourly=wave_height,wave_period,${varsPrev('wave_height')},${varsPrev('wave_period')}` +
+        `&hourly=wave_height,wave_period,sea_level_height_msl,` +
+        `${varsPrev('wave_height')},${varsPrev('wave_period')}` +
         `&past_days=${dias}&forecast_days=1&timezone=${TZ}`,
     ),
   )
@@ -144,7 +178,7 @@ async function main() {
   const VARIABLES = [
     { clave: 'wind_speed_10m', nombre: 'viento', unidad: 'kt', fuente: atm, verdad: 'ERA5' },
     { clave: 'wind_gusts_10m', nombre: 'ráfaga', unidad: 'kt', fuente: atm, verdad: 'ERA5' },
-    { clave: 'cloud_cover', nombre: 'nubosidad', unidad: '%', fuente: atm, verdad: 'ERA5' },
+    { clave: 'shortwave_radiation', nombre: 'radiación', unidad: 'W/m²', fuente: atm, verdad: 'ERA5' },
     { clave: 'wave_height', nombre: 'ola', unidad: 'm', fuente: mar, verdad: 'modelo' },
     { clave: 'wave_period', nombre: 'período', unidad: 's', fuente: mar, verdad: 'modelo' },
   ]
@@ -184,8 +218,10 @@ async function main() {
   // pronosticado y con lo que resultó, y se mide la diferencia. Es lo
   // que de verdad le pasa al usuario.
   const porHorizonte = {}
+  const paresPorHorizonte = {}
   for (const n of LEADS) {
     const difs = []
+    const pares = []
     for (let k = 0; k < UBICACIONES.length; k++) {
       const a = atm[k]
       const m = mar[k]
@@ -200,6 +236,31 @@ async function main() {
         dias.get(d).push(i)
       }
       const iMar = new Map(m.hourly.time.map((t, i) => [t, i]))
+
+      /**
+       * Nivel de marea relativo al rango del día (0 = bajamar, 1 =
+       * pleamar) a la hora de LLEGADA, igual que hace la app: sale a
+       * las 9 y llega dos horas después.
+       */
+      const mareaDelDia = (idxsDia) => {
+        const iLlegada = idxsDia[2] ?? idxsDia[0]
+        const jj = iMar.get(a.hourly.time[iLlegada])
+        if (jj == null) return { rel: null, tendencia: null }
+        const niv = m.hourly.sea_level_height_msl
+        const v = niv?.[jj]
+        if (v == null) return { rel: null, tendencia: null }
+        const desde = Math.max(0, jj - 12)
+        const hasta = Math.min(niv.length - 1, jj + 12)
+        const rango = niv.slice(desde, hasta + 1).filter((x) => x != null)
+        if (rango.length < 4) return { rel: null, tendencia: null }
+        const mn = Math.min(...rango)
+        const mx = Math.max(...rango)
+        const rel = mx - mn < 0.3 ? 0.5 : (v - mn) / (mx - mn)
+        const sig = niv[Math.min(niv.length - 1, jj + 1)]
+        const tendencia = sig == null ? null : sig >= v ? 'llenando' : 'vaciando'
+        return { rel, tendencia }
+      }
+
       for (const [, idxs] of dias) {
         const junta = (arr, idx, modo) => {
           const vs = idx.map((i) => arr?.[i]).filter((x) => x != null)
@@ -211,16 +272,38 @@ async function main() {
         const idxMar = idxs
           .map((i) => iMar.get(a.hourly.time[i]))
           .filter((x) => x != null)
+        // Índice de sol: suma de lo recibido sobre suma del máximo
+        // teórico, igual que hace la app. El máximo teórico es
+        // astronómico, así que no tiene error de pronóstico y se toma
+        // siempre el real.
+        const indice = (suf) => {
+          const rec = idxs.map((i) => a.hourly[`shortwave_radiation${suf}`]?.[i]).filter((x) => x != null)
+          const teo = idxs.map((i) => a.hourly.terrestrial_radiation?.[i]).filter((x) => x != null)
+          if (!rec.length || !teo.length) return null
+          const den = teo.reduce((x, y) => x + y, 0)
+          return den > 0 ? rec.reduce((x, y) => x + y, 0) / den : null
+        }
         const lado = (suf) => ({
           viento: junta(a.hourly[`wind_speed_10m${suf}`], idxs),
           racha: junta(a.hourly[`wind_gusts_10m${suf}`], idxs),
-          nubes: junta(a.hourly[`cloud_cover${suf}`], idxs, 'media'),
+          nubes: indice(suf),
           ola: junta(m.hourly[`wave_height${suf}`], idxMar),
         })
         const real = lado('')
         const pred = lado(`_previous_day${n}`)
         if (real.viento == null || pred.viento == null) continue
-        difs.push(Math.abs(scoreParcial(pred) - scoreParcial(real)))
+        // La marea entra igual en los dos lados: su error de pronóstico
+        // es de centímetros (medido), así que se trata como conocida.
+        const mar_ = mareaDelDia(idxs)
+        const pmar = puntosMarea(mar_.rel, mar_.tendencia)
+        const sReal = scoreParcial(real) + pmar
+        const sPred = scoreParcial(pred) + pmar
+        difs.push(Math.abs(sPred - sReal))
+        // El PAR crudo, no solo el error absoluto: es lo que permite
+        // construir una probabilidad calibrada después. Con |error| solo
+        // se pierde el signo, y sin signo no se puede decir "cuánta
+        // chance hay de que el día real sea mejor que esto".
+        pares.push({ pred: Math.round(sPred * 10) / 10, real: Math.round(sReal * 10) / 10 })
       }
     }
     difs.sort((x, y) => x - y)
@@ -229,6 +312,7 @@ async function main() {
       p90Pts: difs[Math.floor(0.9 * (difs.length - 1))] ?? null,
       dias: difs.length,
     }
+    paresPorHorizonte[n] = pares
   }
 
   // --- salida ---
@@ -262,6 +346,52 @@ async function main() {
     )
   }
 
+  // Percentiles del error con signo, por horizonte. Se siguen
+  // guardando porque son la banda ±N que la app ya muestra.
+  const errorPercentiles = {}
+  for (const n of LEADS) {
+    const e = paresPorHorizonte[n].map((x) => x.real - x.pred).sort((a, b) => a - b)
+    errorPercentiles[n] = Array.from({ length: 101 }, (_, k) => {
+      const v = e[Math.min(e.length - 1, Math.round((k / 100) * (e.length - 1)))]
+      return Math.round(v * 100) / 100
+    })
+  }
+
+  // CURVA DE CALIBRACIÓN: P(el día resulte Excelente | puntaje, horizonte).
+  //
+  // No se puede usar la distribución de error MARGINAL para esto, y no
+  // es un detalle. Se probó y el diagrama de confiabilidad la tumbó: en
+  // el tramo alto decía 89 % y pasaba el 45 % a 4 días. La razón es que
+  // el error NO es independiente del pronóstico — los puntajes altos
+  // regresan a la media, así que aplicarles el error promedio los deja
+  // sobreconfiados.
+  //
+  // Acá se cuenta directo: de los días históricos con un puntaje
+  // parecido a este, ¿cuántos terminaron Excelente? Condicionado al
+  // puntaje, que es lo que faltaba.
+  const UMBRAL = 75
+  const VENTANA = 6 // ± puntos de puntaje que cuentan como "parecido"
+  const MIN_VECINOS = 25
+  const GRILLA = Array.from({ length: 36 }, (_, i) => 30 + i * 2) // 30..100
+  const probPorScore = {}
+  for (const n of LEADS) {
+    const ps = paresPorHorizonte[n]
+    probPorScore[n] = GRILLA.map((s) => {
+      let v = VENTANA
+      let cerca = ps.filter((x) => Math.abs(x.pred - s) <= v)
+      // Si no hay vecinos suficientes se ensancha en vez de inventar.
+      while (cerca.length < MIN_VECINOS && v < 40) {
+        v += 4
+        cerca = ps.filter((x) => Math.abs(x.pred - s) <= v)
+      }
+      if (cerca.length === 0) return null
+      return Math.round((1000 * cerca.filter((x) => x.real >= UMBRAL).length) / cerca.length) / 1000
+    })
+  }
+  const realesL1 = paresPorHorizonte[LEADS[0]].map((x) => x.real)
+  const tasaBase =
+    Math.round((1000 * realesL1.filter((x) => x >= 75).length) / realesL1.length) / 10
+
   const artefacto = {
     _que: 'Error del pronóstico por horizonte, medido contra lo que después resultó. Lo genera `npm run backtest`. La app lee bandaPts para mostrar la incertidumbre real en vez de una constante inventada.',
     _verdad: {
@@ -273,9 +403,41 @@ async function main() {
     ubicaciones: UBICACIONES.map((u) => u.id),
     porVariable,
     bandaPts: porHorizonte,
+    /**
+     * La distribución del error CON SIGNO (real − pronosticado) a cada
+     * horizonte, como 101 percentiles. Es la materia prima de la
+     * probabilidad calibrada: para un pronóstico dado dice qué tan
+     * probable es que el día real termine por encima de un umbral.
+     *
+     * Van percentiles y no los 364 pares crudos porque este archivo lo
+     * IMPORTA LA APP: los pares pesan 119 KB de bundle para no aportar
+     * nada que los percentiles no digan. Los crudos quedan aparte, en
+     * tests/fixtures/backtest-pares.json, solo para validar.
+     */
+    errorPercentiles,
+    /** El umbral de "buen día", elegido con los datos. Ver informe. */
+    umbralExcelente: UMBRAL,
+    tasaBaseExcelente: tasaBase,
+    /**
+     * P(Excelente | puntaje, horizonte), contada sobre los días
+     * históricos con puntaje parecido. Condicionada al puntaje, que es
+     * lo que la versión marginal no hacía y la dejaba sobreconfiada.
+     */
+    probGrillaScore: GRILLA,
+    probPorScore,
   }
   writeFileSync('src/config/backtest.json', JSON.stringify(artefacto, null, 1))
-  console.log('\nartefacto: src/config/backtest.json')
+  writeFileSync(
+    'tests/fixtures/backtest-pares.json',
+    JSON.stringify({
+      _que: 'Los pares (score pronosticado, score real) crudos de cada día y horizonte. NO los importa la app —pesan demasiado para el bundle— y existen para validar la calibración de la probabilidad: sin ellos no se puede dibujar el diagrama de confiabilidad.',
+      _generado: new Date().toISOString().slice(0, 10),
+      paresPorHorizonte,
+    }),
+  )
+  console.log('\nartefacto app:  src/config/backtest.json')
+  console.log('pares crudos:   tests/fixtures/backtest-pares.json')
+  console.log(`umbral "Excelente" ≥75 · tasa base ${tasaBase} % de los días`)
 }
 
 // Solo corre si se invoca directo, no al importarlo desde un test.

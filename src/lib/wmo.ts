@@ -48,7 +48,33 @@ export function cieloDeCodigo(code: number | null | undefined): Cielo {
 export function textoCieloDia(
   nubesMedia: number | null,
   probLluviaMax: number | null,
+  indiceSol?: number | null,
 ): string {
+  // El ÍNDICE manda sobre la nubosidad, y por la misma razón por la que
+  // manda en el score: describe la luz que te toca, no el campo de
+  // nubes del modelo. Medido el 1-sep-2026 sobre 360 días: usar la
+  // nubosidad hacía que el 11.4 % de los días dijeran "nublado" con el
+  // sol puntuando 0.78 o más — días de 95 % de nubes por los que igual
+  // pasa el 68 % de la radiación. Con el índice, etiqueta y puntaje no
+  // se pueden contradecir porque salen del mismo número.
+  //
+  // Los cortes son los cuartiles observados del índice en el corredor
+  // (p25 0.45 · p50 0.55 · p75 0.66), así que cada palabra cubre
+  // aproximadamente una cuarta parte de los días.
+  if (indiceSol != null) {
+    const base =
+      indiceSol >= 0.65
+        ? 'despejado'
+        : indiceSol >= 0.55
+          ? 'sol parcial'
+          : indiceSol >= 0.42
+            ? 'nublado'
+            : 'cerrado'
+    if (indiceSol >= 0.55 && probLluviaMax != null && probLluviaMax > 50) {
+      return 'sol y chubascos'
+    }
+    return base
+  }
   if (nubesMedia == null) return '—'
   const base = nubesMedia <= 25 ? 'despejado' : nubesMedia <= 50 ? 'sol parcial' : 'nublado'
   // Cielo abierto en promedio pero con lluvia más probable que no:

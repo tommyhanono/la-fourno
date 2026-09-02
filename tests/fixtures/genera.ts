@@ -55,6 +55,8 @@ export function forecastSintetico(): PuntoForecast[] {
       wind_gusts_10m: [] as (number | null)[],
       wind_direction_10m: [] as (number | null)[],
       cloud_cover: [] as (number | null)[],
+      shortwave_radiation: [] as (number | null)[],
+      terrestrial_radiation: [] as (number | null)[],
       precipitation: [] as (number | null)[],
       precipitation_probability: [] as (number | null)[],
       weather_code: [] as (number | null)[],
@@ -71,7 +73,14 @@ export function forecastSintetico(): PuntoForecast[] {
       hourly.wind_speed_10m.push(Math.round(viento * 10) / 10)
       hourly.wind_gusts_10m.push(Math.round(viento * 1.3 * 10) / 10)
       hourly.wind_direction_10m.push(190)
-      hourly.cloud_cover.push(tormenta ? 95 : h < 12 ? 12 : 45)
+      const nubes = tormenta ? 95 : h < 12 ? 12 : 45
+      hourly.cloud_cover.push(nubes)
+      // Radiación: perfil diurno simple con el máximo al mediodía, y la
+      // fracción que pasa según las nubes. El índice resultante cae en
+      // el rango real medido del corredor (0.13 a 0.72).
+      const teorica = h >= 6 && h <= 18 ? Math.round(1350 * Math.sin((Math.PI * (h - 6)) / 12)) : 0
+      hourly.terrestrial_radiation.push(teorica)
+      hourly.shortwave_radiation.push(Math.round(teorica * (0.72 - 0.005 * nubes)))
       hourly.precipitation.push(tormenta ? 6 : 0)
       hourly.precipitation_probability.push(tormenta ? 90 : 8)
       hourly.weather_code.push(tormenta ? 95 : h < 12 ? 1 : 2)

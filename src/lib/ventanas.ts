@@ -242,6 +242,22 @@ function primeraTormenta(f: PuntoForecast, inicio: Date, horas: number): Date | 
   return null
 }
 
+/**
+ * Índice de sol de una franja: cuánta de la luz disponible llegó de
+ * verdad. null si no hay datos de radiación (la app cae a nubosidad).
+ *
+ * Se suma numerador y denominador antes de dividir. Promediar las
+ * razones horarias daría el mismo peso a las 9 am que al mediodía,
+ * cuando al mediodía hay casi el doble de luz en juego.
+ */
+function indiceDeSol(recibida: number[], teorica: number[]): number | null {
+  if (recibida.length === 0 || teorica.length === 0) return null
+  const num = recibida.reduce((a, b) => a + b, 0)
+  const den = teorica.reduce((a, b) => a + b, 0)
+  if (den <= 0) return null
+  return num / den
+}
+
 /** Mezcla promedio y pico según jornada.pesoPico (0 = medio, 1 = pico). */
 function tipico(prom: number | null, pico: number | null): number | null {
   const w = CALIBRACION.jornada.pesoPico
@@ -296,6 +312,12 @@ function entradaFranja(
   const vientos = serieF('wind_speed_10m')
   const rachas = serieF('wind_gusts_10m')
   const nubes = serieF('cloud_cover')
+  // Índice de sol: la razón entre lo que llegó y el máximo teórico de
+  // la jornada. Se suman las dos series y se divide UNA vez, en vez de
+  // promediar razones hora a hora: así las horas de más sol pesan lo
+  // que corresponde y no todas igual.
+  const radiacion = serieF('shortwave_radiation')
+  const teorica = serieF('terrestrial_radiation')
   const probs = serieF('precipitation_probability')
   const lluvias = serieF('precipitation')
   const capes = serieF('cape')
@@ -342,6 +364,7 @@ function entradaFranja(
       vientoKt: tipico(meanNum(vientos), vientoPico),
       rachaKt: maxNum(rachas),
       nubosidadPct: meanNum(nubes),
+      indiceSol: indiceDeSol(radiacion, teorica),
       probLluviaPct: maxNum(probs),
       lluviaMmH: tipico(meanNum(lluvias), maxNum(lluvias)),
       olaM: tipico(meanNum(olas), olaPico),

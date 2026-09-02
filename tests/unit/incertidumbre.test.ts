@@ -73,8 +73,13 @@ describe('el backtest usa las MISMAS curvas que la app', () => {
     expect(CURVAS.viento).toEqual(CALIBRACION.viento.curva.map((a) => [a.kt, a.frac]))
   })
 
-  it('la curva de sol coincide', () => {
-    expect(CURVAS.sol).toEqual(CALIBRACION.sol.curva.map((a) => [a.pct, a.frac]))
+  it('la curva de sol coincide — y es la del ÍNDICE, no la de nubes', () => {
+    // Desde el 1-sep-2026 el término de sol se calcula con el índice de
+    // radiación, que predice las horas de sol mucho mejor. Si el
+    // backtest siguiera midiendo con la curva de nubosidad, la banda y
+    // la probabilidad quedarían calibradas contra una fórmula que la
+    // app ya no usa.
+    expect(CURVAS.sol).toEqual(CALIBRACION.sol.indiceCurva.map((a) => [a.idx, a.frac]))
   })
 
   it('la curva de ola coincide', () => {
@@ -85,16 +90,18 @@ describe('el backtest usa las MISMAS curvas que la app', () => {
     // La prueba de fuego: mismos insumos, mismo número. Si el script
     // midiera sobre otra fórmula, la banda no aplicaría al score que
     // el usuario ve.
+    // `nubes` es el ÍNDICE DE SOL (0..1), no el porcentaje de nubes.
     const casos = [
-      { viento: 4, racha: 6, nubes: 10, ola: 0.3 },
-      { viento: 13, racha: 22, nubes: 60, ola: 1.1 },
-      { viento: 19, racha: 21, nubes: 95, ola: 1.7 },
+      { viento: 4, racha: 6, nubes: 0.68, ola: 0.3 },
+      { viento: 13, racha: 22, nubes: 0.5, ola: 1.1 },
+      { viento: 19, racha: 21, nubes: 0.2, ola: 1.7 },
     ]
     for (const c of casos) {
       const real = scoreBloque({
         vientoKt: c.viento,
         rachaKt: c.racha,
-        nubosidadPct: c.nubes,
+        nubosidadPct: null,
+        indiceSol: c.nubes,
         probLluviaPct: null,
         lluviaMmH: 0,
         olaM: c.ola,

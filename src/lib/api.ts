@@ -29,6 +29,11 @@ const HOURLY_FORECAST = [
   'wind_gusts_10m',
   'wind_direction_10m',
   'cloud_cover',
+  // Radiación recibida y máximo teórico de la hora. Su razón es el
+  // "índice de sol", que predice las horas de sol reales bastante
+  // mejor que la nubosidad (ver calibracion.ts, sol.indiceCurva).
+  'shortwave_radiation',
+  'terrestrial_radiation',
   'precipitation',
   'precipitation_probability',
   'weather_code',

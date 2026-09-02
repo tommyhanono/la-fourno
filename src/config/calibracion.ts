@@ -30,6 +30,7 @@ export interface Anclaje {
 export type AnclajeKt = Anclaje & { kt: number }
 export type AnclajePct = Anclaje & { pct: number }
 export type AnclajeM = Anclaje & { m: number }
+export type AnclajeIdx = Anclaje & { idx: number }
 
 export const CALIBRACION = {
   /** Duración de cada bloque horario interno, en horas. */
@@ -102,7 +103,51 @@ export const CALIBRACION = {
   },
 
   sol: {
+    /**
+     * ÍNDICE DE SOL (radiación recibida / máximo teórico de esa hora)
+     * → fracción del peso de sol. Es el insumo PRINCIPAL; la nubosidad
+     * quedó de respaldo y para el texto que se lee en pantalla.
+     *
+     * POR QUÉ SE CAMBIÓ (medido 1-sep-2026, 90 días, 4 ubicaciones).
+     * Se comparó qué variable predice mejor las horas de sol que
+     * realmente hubo, con correlación de rangos:
+     *
+     *            -1d     -3d     -7d
+     *   nubosidad        0.555   0.349   0.100
+     *   RADIACIÓN        0.689   0.491   0.231   ← gana en los tres
+     *   horas de sol     0.620   0.426   0.191
+     *
+     * A 7 días la radiación es 2.3 veces mejor. Y tiene sentido: en el
+     * trópico la nubosidad lee alto (cirros finos, cúmulos sueltos) y
+     * aun así pasa mucha luz. Es el mismo problema que producía
+     * "despejado · lluvia 69 %".
+     *
+     * POR QUÉ ESTA CURVA Y NO UNA "FÍSICA". Una curva fiel a la física
+     * (índice 0.55 → 0.79 del peso) subiría el score medio +9.2 puntos
+     * y dejaría inválidos los umbrales de `niveles` y la calibración de
+     * la probabilidad. Esta conserva el nivel (+2.1 pts de media) y NO
+     * pierde nada de exactitud: la correlación de rangos es invariante
+     * a transformaciones monótonas, así que la mejora del predictor se
+     * conserva con cualquier curva creciente. El corrimiento se eligió
+     * chico a propósito; la curva "física" queda documentada acá por si
+     * algún día se decide recalibrar todo junto.
+     *
+     * Rango observado del índice en el corredor: 0.13 a 0.72 (el techo
+     * de cielo despejado en el trópico ronda 0.70-0.75).
+     */
+    indiceCurva: [
+      { idx: 0.15, frac: 0.2 }, //  oscuro de verdad
+      { idx: 0.4, frac: 0.25 }, //  pasa poca luz
+      { idx: 0.55, frac: 0.32 }, // día promedio de lluviosa
+      { idx: 0.65, frac: 0.75 }, // buena luz
+      { idx: 0.7, frac: 1.0 }, //   cielo abierto
+    ] as AnclajeIdx[],
+
     // Nubosidad media (%) → fracción del peso de sol.
+    // RESPALDO: se usa solo si no llegó la radiación. Se conserva
+    // porque la nubosidad sigue siendo lo que se dice en palabras
+    // ("nublado", "sol y chubascos") y porque sin ella el término
+    // quedaría sin red si la API cambia.
     curva: [
       { pct: 0, frac: 1.0 },
       { pct: 25, frac: 1.0 }, //  despejado

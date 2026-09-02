@@ -21,6 +21,7 @@ import { BadgeScore, Desglose } from '../components/Desglose'
 import { Icono } from '../components/Icono'
 import { cieloDeCodigo, textoCieloDia } from '../lib/wmo'
 import { elegirMejorDia, motivoSinVeredicto, dudoso } from '../lib/veredicto'
+import { probExcelente } from '../lib/probabilidad'
 import { FilaVerdad } from '../components/FilaVerdad'
 import { archivarSemana, subirArchivo, diaAPreguntar, sincronizar } from '../lib/verdad'
 
@@ -181,10 +182,24 @@ function Veredicto({ dia, unidades }: { dia: DiaJornada; unidades: Unidades }) {
         {dia.parejo ? 'Parejo en todos los puntos, sugerido' : 'Mejor destino'}:{' '}
         <a href={`#/punto/${dia.mejorDestino.id}`}>{dia.mejorDestino.nombre}</a>
       </p>
+      {(() => {
+        const p = probExcelente(dia.score.total, dia.anticipacionDias)
+        return (
+          p != null && (
+            <p className="veredicto-prob">
+              <strong>{Math.round(p * 100)} %</strong> de que salga excelente
+            </p>
+          )
+        )
+      })()}
       <p className="veredicto-cond">
         Viento {rangoViento(dia.rango, unidades)} · ola{' '}
         {rangoOla(dia.rango, unidades)} ·{' '}
-        {textoCielo(dia.entrada.nubosidadPct, dia.entrada.probLluviaPct).toLowerCase()}
+        {textoCielo(
+          dia.entrada.nubosidadPct,
+          dia.entrada.probLluviaPct,
+          dia.entrada.indiceSol,
+        ).toLowerCase()}
       </p>
       {/* Misma regla que la tarjeta, sin excepciones: el veredicto no
           puede afirmar algo que la tarjeta de abajo se calla. */}
@@ -241,7 +256,13 @@ function TarjetaDia({
         </div>
         <div>
           <dt>Cielo</dt>
-          <dd>{textoCielo(d.entrada.nubosidadPct, d.entrada.probLluviaPct)}</dd>
+          <dd>
+            {textoCielo(
+              d.entrada.nubosidadPct,
+              d.entrada.probLluviaPct,
+              d.entrada.indiceSol,
+            )}
+          </dd>
         </div>
         <div>
           <dt>Lluvia</dt>
@@ -388,8 +409,12 @@ function rangoOla(r: RangoDia, u: Unidades): string {
 }
 
 /** Primera letra en mayúscula: el helper compartido devuelve minúscula. */
-function textoCielo(nubes: number | null, probLluvia: number | null = null): string {
-  const t = textoCieloDia(nubes, probLluvia)
+function textoCielo(
+  nubes: number | null,
+  probLluvia: number | null = null,
+  indiceSol: number | null = null,
+): string {
+  const t = textoCieloDia(nubes, probLluvia, indiceSol)
   return t === '—' ? t : t[0].toUpperCase() + t.slice(1)
 }
 

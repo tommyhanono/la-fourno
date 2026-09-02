@@ -10,8 +10,16 @@ export interface EntradaBloque {
   vientoKt: number | null
   /** ráfaga máxima del bloque, kt */
   rachaKt: number | null
-  /** nubosidad media, % */
+  /** nubosidad media, % — respaldo y texto que se lee en pantalla */
   nubosidadPct: number | null
+  /**
+   * Índice de sol: radiación recibida / máximo teórico de la jornada,
+   * 0..1. Es el insumo PRINCIPAL del término de sol porque predice las
+   * horas de sol reales mucho mejor que la nubosidad (0.689 contra
+   * 0.555 de correlación a 1 día, y 0.231 contra 0.100 a 7).
+   * Opcional: si no llegó, el score cae a la nubosidad.
+   */
+  indiceSol?: number | null
   /** probabilidad de lluvia máxima, % */
   probLluviaPct: number | null
   /** lluvia máxima, mm/h */
@@ -162,10 +170,18 @@ export function scoreBloque(e: EntradaBloque, cal: Calibracion = CALIBRACION): R
   }
 
   // --- Sol ---
-  if (e.nubosidadPct != null) {
-    const frac = curvaFrac(cal.sol.curva, 'pct', e.nubosidadPct)
+  // El índice de radiación manda; la nubosidad es el respaldo. El TEXTO
+  // sigue saliendo de la nubosidad porque es lo que se dice hablando
+  // ("nublado"), pero los puntos salen del mejor predictor.
+  if (e.indiceSol != null || e.nubosidadPct != null) {
+    const frac =
+      e.indiceSol != null
+        ? curvaFrac(cal.sol.indiceCurva, 'idx', e.indiceSol)
+        : curvaFrac(cal.sol.curva, 'pct', e.nubosidadPct!)
     const etiqueta =
-      e.nubosidadPct <= 25
+      e.nubosidadPct == null
+        ? 'sol'
+        : e.nubosidadPct <= 25
         ? 'despejado'
         : e.nubosidadPct <= 50
           ? `sol parcial (${Math.round(e.nubosidadPct)} % nubes)`

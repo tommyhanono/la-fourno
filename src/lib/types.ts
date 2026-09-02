@@ -8,6 +8,10 @@ export interface HorarioForecast {
   wind_gusts_10m: (number | null)[]
   wind_direction_10m: (number | null)[]
   cloud_cover: (number | null)[]
+  /** Radiación que llegó al suelo, W/m². */
+  shortwave_radiation: (number | null)[]
+  /** Máximo teórico de esa hora y fecha (tope de atmósfera), W/m². */
+  terrestrial_radiation: (number | null)[]
   precipitation: (number | null)[]
   precipitation_probability: (number | null)[]
   weather_code: (number | null)[]

@@ -9,6 +9,38 @@
 import { describe, it, expect } from 'vitest'
 import { textoCieloDia } from '../../src/lib/wmo'
 
+describe('el cielo del día, con índice de sol', () => {
+  it('el índice manda sobre la nubosidad', () => {
+    // El caso real y frecuente: 95 % de nubes por las que igual pasa el
+    // 68 % de la radiación. Con la nubosidad diría "nublado" mientras el
+    // score puntúa el sol alto — contradicción que se veía en el 11.4 %
+    // de los días. Con el índice, etiqueta y puntaje van juntos.
+    expect(textoCieloDia(95, 10, 0.68)).toBe('despejado')
+    expect(textoCieloDia(10, 10, 0.3)).toBe('cerrado')
+  })
+
+  it('los cortes son los cuartiles observados del corredor', () => {
+    expect(textoCieloDia(50, 0, 0.7)).toBe('despejado')
+    expect(textoCieloDia(50, 0, 0.6)).toBe('sol parcial')
+    expect(textoCieloDia(50, 0, 0.5)).toBe('nublado')
+    expect(textoCieloDia(50, 0, 0.35)).toBe('cerrado')
+  })
+
+  it('con luz buena y lluvia probable sigue diciendo sol y chubascos', () => {
+    expect(textoCieloDia(20, 70, 0.66)).toBe('sol y chubascos')
+  })
+
+  it('con poca luz NO dice chubascos: dice lo que es', () => {
+    // "Sol y chubascos" con índice 0.3 sería vender un sol que no está.
+    expect(textoCieloDia(90, 80, 0.3)).toBe('cerrado')
+  })
+
+  it('sin índice cae a la nubosidad y sigue funcionando', () => {
+    expect(textoCieloDia(10, 5, null)).toBe('despejado')
+    expect(textoCieloDia(80, 10, undefined)).toBe('nublado')
+  })
+})
+
 describe('el cielo del día', () => {
   it('sin dato de nubes no inventa nada', () => {
     expect(textoCieloDia(null, 80)).toBe('—')

@@ -4,6 +4,7 @@
 import type { ResultadoScore } from '../lib/score'
 import { nivelScore, faltaDatoCritico } from '../lib/score'
 import { textoBanda, BACKTEST_INFO } from '../lib/incertidumbre'
+import { probExcelente, fraseProb } from '../lib/probabilidad'
 
 export function BadgeScore({ score }: { score: ResultadoScore }) {
   if (faltaDatoCritico(score)) {
@@ -41,6 +42,8 @@ export function Desglose({
   anticipacionDias?: number
 }) {
   const banda = anticipacionDias == null ? null : textoBanda(anticipacionDias)
+  const prob =
+    anticipacionDias == null ? null : probExcelente(score.total, anticipacionDias)
   return (
     <details className="desglose">
       <summary>
@@ -71,6 +74,16 @@ export function Desglose({
             </span>
           </li>
         ))}
+        {anticipacionDias != null && prob != null && (
+          <li className="nota-prob">
+            {/* La probabilidad va ANTES de la banda porque contesta la
+                pregunta que se hace de verdad ("¿planeo este día?"),
+                mientras que el ±N explica el número. */}
+            <strong>{Math.round(prob * 100)} % de que salga Excelente.</strong>{' '}
+            {fraseProb(prob)} De cada 100 días históricos con este puntaje a
+            esta distancia, tantos terminaron en Excelente.
+          </li>
+        )}
         {banda && (
           <li className="nota-banda">
             {/* La incertidumbre va DENTRO del desglose, que es donde el
